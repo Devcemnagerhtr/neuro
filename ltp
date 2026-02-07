@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Synaptic Plasticity — Physics Simulation</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #dfe6ed;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 10px 20px;
+    min-height: 100vh;
+  }
+  h1 { font-size: 1.25rem; color: #1e293b; margin-top: 4px; }
+  .sub { color: #64748b; font-size: 0.8rem; margin-bottom: 8px; }
+  
+  .lay { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  .cw { background: #fff; border-radius: 12px; box-shadow: 0 2px 14px rgba(0,0,0,0.1); padding: 6px; }
+  canvas { display: block; border-radius: 8px; cursor: crosshair; }
+  
+  .pn {
+    background: #fff; border-radius: 12px; box-shadow: 0 2px 14px rgba(0,0,0,0.1);
+    padding: 14px 16px; width: 260px; display: flex; flex-direction: column; gap: 9px; font-size: 0.84rem;
+  }
+  .pn h2 {
+    font-size: 0.68rem; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8;
+    border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin: 4px 0 0 0;
+  }
+
+  .param-row { margin-bottom: 2px; }
+  .param-label { display: flex; justify-content: space-between; color: #475569; font-size: 0.75rem; font-weight: 500; margin-bottom: 2px; }
+  .param-val { color: #0891b2; font-family: monospace; font-weight: 700; }
+  input[type="range"] { width: 100%; height: 4px; background: #e2e8f0; border-radius: 2px; -webkit-appearance: none; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; background: #0891b2; border-radius: 50%; cursor: pointer; }
+  
+  .bt { padding: 9px; border: none; border-radius: 7px; font-weight: 700; font-size: 0.84rem; cursor: pointer; width: 100%; transition: transform 0.1s; }
+  .bt:hover { transform: translateY(-1px); filter: brightness(1.06); }
+  .bg { background: #0891b2; color: #fff; }
+  .ba { background: #7c3aed; color: #fff; }
+  .br { background: #e2e8f0; color: #64748b; }
+  
+  .ro { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 7px; padding: 6px 9px; display: flex; justify-content: space-between; align-items: center; }
+  .ro .lb { font-size: 0.65rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.4px; }
+  .ro .vl { font-size: 1rem; font-weight: 700; font-family: 'Courier New', monospace; }
+  
+  .lg { font-size: 0.72rem; color: #334155; min-height: 38px; background: #fefce8; border: 1px solid #fef08a; border-radius: 7px; padding: 7px; line-height: 1.35; font-weight: 500; }
+  .nfo { font-size: 0.7rem; color: #64748b; line-height: 1.45; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 7px; padding: 7px 9px; }
+  .nfo strong { color: #166534; }
+  
+  .prog-wrap { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 7px; padding: 6px 9px; }
+  .prog-wrap .lb { font-size: 0.65rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 3px; }
+  .prog-outer { height: 10px; background: #e2e8f0; border-radius: 6px; overflow: hidden; position: relative; }
+  .prog-fill { height: 100%; border-radius: 6px; transition: width 0.2s; background: #d97706; }
+  .prog-mark { position: absolute; top: -1px; bottom: -1px; width: 2px; background: #dc2626; border-radius: 2px; z-index: 2; }
+  .prog-label { display: flex; justify-content: space-between; font-size: 0.62rem; color: #94a3b8; margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<h1>Synaptic Plasticity: LTP &amp; LTD</h1>
+<p class="sub">Particles have physics — watch glutamate bind, Mg²⁺ expel, ions flow, and synapses strengthen</p>
+
+<div class="lay">
+  <div class="cw"><canvas id="c"></canvas></div>
+
+  <div class="pn">
+    <h2>Controls</h2>
+    <div style="display:flex; gap:6px">
+      <button class="bt bg" onclick="stim()">⚡ Stimulate</button>
+      <button class="bt ba" id="abtn" onclick="togAuto()">▶ Auto HFS</button>
+    </div>
+    <button class="bt br" onclick="fullReset()">Reset</button>
+
+    <h2>Ion Concentrations</h2>
+    <div class="param-row">
+      <div class="param-label">Extracellular Na⁺ <span class="param-val" id="valNa">15</span></div>
+      <input type="range" id="slNa" min="0" max="60" value="15" oninput="updIonTargets()">
+    </div>
+    <div class="param-row">
+      <div class="param-label">Extracellular Ca²⁺ <span class="param-val" id="valCa">12</span></div>
+      <input type="range" id="slCa" min="0" max="50" value="12" oninput="updIonTargets()">
+    </div>
+
+    <h2>Readouts</h2>
+    <div class="ro"><div class="lb">Membrane Potential</div><div class="vl" id="vmR" style="color:#6366f1">−70.0 mV</div></div>
+    
+    <div class="prog-wrap">
+      <div class="lb">Ca²⁺ in spine → LTP Threshold</div>
+      <div class="prog-outer">
+        <div class="prog-fill" id="caBar" style="width:0%"></div>
+        <div class="prog-mark" style="left:80%" title="LTP Threshold"></div>
+      </div>
+      <div class="prog-label"><span id="caR">0 ions</span><span>Target: 10+</span></div>
+    </div>
+
+    <div class="ro"><div class="lb">Active AMPA Receptors</div><div class="vl" id="amR" style="color:#0891b2">3</div></div>
+    <div class="ro"><div class="lb">Stimulations</div><div class="vl" id="stR" style="color:#475569">0</div></div>
+
+    <h2>Status Log</h2>
+    <div class="lg" id="logB">Press Stimulate to release glutamate.</div>
+  </div>
+</div>
+
+<script>
+const cv = document.getElementById('c');
+const cx = cv.getContext('2d');
+const W = 860, H = 660;
+const D = window.devicePixelRatio || 1;
+cv.width = W * D; cv.height = H * D;
+cv.style.width = W + 'px'; cv.style.height = H + 'px';
+cx.setTransform(D, 0, 0, D, 0, 0);
+
+// Colors & Layout
+const LY = { preT:5, preB:145, mpY:145, clT:154, clB:388, mpT:388, mpB:420, poT:424, poB:625, L:50, R:810 };
+const MH = LY.mpB - LY.mpT;
+const MM = (LY.mpT + LY.mpB) / 2;
+
+function rr(x,y,w,h,r) {
+  cx.beginPath(); cx.moveTo(x+r,y); cx.lineTo(x+w-r,y);
+  cx.quadraticCurveTo(x+w,y,x+w,y+r); cx.lineTo(x+w,y+h-r);
+  cx.quadraticCurveTo(x+w,y+h,x+w-r,y+h); cx.lineTo(x+r,y+h);
+  cx.quadraticCurveTo(x,y+h,x,y+h-r); cx.lineTo(x,y+r);
+  cx.quadraticCurveTo(x,y,x+r,y); cx.closePath();
+}
+
+const PT = {
+  glu:{ r:7, m:1.2, c1:'#fde68a', c2:'#d97706', brd:'#b45309', gw:'rgba(245,158,11,0.18)', lb:'Glu', lc:'#78350f', fs:7.5 },
+  na:{ r:5, m:0.6, c1:'#bfdbfe', c2:'#2563eb', brd:'#1d4ed8', gw:'rgba(59,130,246,0.14)', lb:'Na⁺', lc:'#fff', fs:6.5 },
+  ca:{ r:6, m:1.0, c1:'#fee2e2', c2:'#dc2626', brd:'#b91c1c', gw:'rgba(220,38,38,0.16)', lb:'Ca²⁺', lc:'#fff', fs:6 },
+  mg:{ r:6.5, m:1.3, c1:'#e9d5ff', c2:'#7c3aed', brd:'#5b21b6', gw:'rgba(124,58,237,0.16)', lb:'Mg²⁺', lc:'#fff', fs:6 }
+};
+
+// Simulation State
+let parts = [];
+let Vm = -70, stimN = 0, frame = 0, ltpN = 0;
+let camkAct = false, camkT = 0;
+let fusAnim = 0, fusX = 0;
+let autoOn = false, autoIv = null;
+let logTxt = 'Press Stimulate to release glutamate.';
+let targetNa = 15;
+let targetCa = 12;
+
+function updIonTargets() {
+  targetNa = parseInt(document.getElementById('slNa').value);
+  document.getElementById('valNa').textContent = targetNa;
+  targetCa = parseInt(document.getElementById('slCa').value);
+  document.getElementById('valCa').textContent = targetCa;
+}
+
+function mkAmpas() {
+  return [
+    { x:150, on:true, glu:null, open:false, bt:0, iA:0 },
+    { x:410, on:true, glu:null, open:false, bt:0, iA:0 },
+    { x:700, on:true, glu:null, open:false, bt:0, iA:0 },
+    { x:280, on:false, glu:null, open:false, bt:0, iA:0 },
+    { x:560, on:false, glu:null, open:false, bt:0, iA:0 }
+  ];
+}
+function mkNmdas() {
+  return [
+    { x:330, glu:null, open:false, bt:0, mg:true },
+    { x:620, glu:null, open:false, bt:0, mg:true }
+  ];
+}
+let ampas = mkAmpas();
+let nmdas = mkNmdas();
+
+const vslDock = [], vslRes = [];
+function initVsl() {
+  vslDock.length = 0; vslRes.length = 0;
+  for(let i=0; i<5; i++) vslDock.push({ x:130+i*145, y:LY.preB-24, r:16 });
+  for(let i=0; i<8; i++) vslRes.push({ x:90+(i%4)*180, y:LY.preT+32+Math.floor(i/4)*40, r:12 });
+}
+initVsl();
+
+function spawn(type, x, y, reg, vx, vy) {
+  const t = PT[type];
+  const p = {
+    type, x, y, 
+    vx: vx || (Math.random()-0.5)*1.5, 
+    vy: vy || (Math.random()-0.5)*1.5,
+    r: t.r, m: t.m, reg, 
+    alive: true, bound: false, bTo: null, 
+    passing: false, pCh: null, alpha: 1, age: 0
+  };
+  parts.push(p);
+  return p;
+}
+
+function maintain() {
+  const currentNa = parts.filter(p => p.type==='na' && p.reg==='cl' && p.alive && !p.bound && !p.passing);
+  const currentCa = parts.filter(p => p.type==='ca' && p.reg==='cl' && p.alive && !p.bound && !p.passing);
+  
+  if (currentNa.length < targetNa && Math.random() < 0.1) spawn('na', LY.L+20+Math.random()*(LY.R-LY.L-40), LY.clT+20+Math.random()*(LY.clB-LY.clT-60), 'cl');
+  if (currentCa.length < targetCa && Math.random() < 0.05) spawn('ca', LY.L+20+Math.random()*(LY.R-LY.L-40), LY.clT+20+Math.random()*(LY.clB-LY.clT-60), 'cl');
+
+  if (currentNa.length > targetNa) { const p = currentNa[Math.floor(Math.random()*currentNa.length)]; if(p) p.alive = false; }
+  if (currentCa.length > targetCa) { const p = currentCa[Math.floor(Math.random()*currentCa.length)]; if(p) p.alive = false; }
+}
+
+const BR = 0.08, DMP = 0.996, RES = 0.75, SPD_MAX = 3.5;
+const ATT_R = 55, ATT_F = 0.05, BIND_D = 7, UNBIND_T = 270;
+const FLOW_F = 0.3, CAP_R = 40;
+const BSY = LY.mpT - 13; 
+
+function updPart(p) {
+  if (!p.alive) return;
+  p.age++;
+  if (p.bound) return;
+
+  // Passing through channel
+  if (p.passing) {
+    p.y += 3.5; // FAST passing speed
+    p.x += (p.pCh.x - p.x) * 0.2; // centering force
+    if (p.y > LY.mpB + 10) {
+      p.passing = false; 
+      p.reg = 'po'; 
+      p.vy = 2.0 + Math.random(); 
+      p.vx = (Math.random()-0.5)*3; 
+      p.pCh = null;
+      if (p.type === 'na') Vm = Math.min(-5, Vm + 5);
+      if (p.type === 'ca') {
+        const cc = parts.filter(q => q.type==='ca' && q.reg==='po' && q.alive).length;
+        if (cc < 10) logTxt = `Ca²⁺ entering spine (${cc}/10 for LTP)`;
+        else if (!camkAct) logTxt = `Ca²⁺ threshold reached!`;
+      }
+    }
+    return;
+  }
+
+  p.vx += (Math.random()-0.5) * BR * 2;
+  p.vy += (Math.random()-0.5) * BR * 2;
+  p.vx *= DMP; p.vy *= DMP;
+  const sp = Math.sqrt(p.vx*p.vx + p.vy*p.vy);
+  if (sp > SPD_MAX) { p.vx *= SPD_MAX/sp; p.vy *= SPD_MAX/sp; }
+  
+  p.x += p.vx; p.y += p.vy;
+
+  if (p.reg === 'cl') {
+    if (p.x-p.r < LY.L) { p.x = LY.L+p.r; p.vx = Math.abs(p.vx)*RES; }
+    if (p.x+p.r > LY.R) { p.x = LY.R-p.r; p.vx = -Math.abs(p.vx)*RES; }
+    if (p.y-p.r < LY.clT) { p.y = LY.clT+p.r; p.vy = Math.abs(p.vy)*RES; }
+    if (p.y+p.r > LY.clB) { p.y = LY.clB-p.r; p.vy = -Math.abs(p.vy)*RES; }
+    if (p.type==='glu' && !p.bound && p.age > 700) { p.alpha -= 0.004; if(p.alpha<=0) p.alive=false; }
+    if (p.type==='mg' && p.age > 500) { p.alpha -= 0.003; if(p.alpha<=0) p.alive=false; }
+  } else if (p.reg === 'po') {
+    if (p.x-p.r < LY.L) { p.x = LY.L+p.r; p.vx = Math.abs(p.vx)*RES; }
+    if (p.x+p.r > LY.R) { p.x = LY.R-p.r; p.vx = -Math.abs(p.vx)*RES; }
+    if (p.y-p.r < LY.poT) { p.y = LY.poT+p.r; p.vy = Math.abs(p.vy)*RES; }
+    if (p.y+p.r > LY.poB) { p.y = LY.poB-p.r; p.vy = -Math.abs(p.vy)*RES; }
+    if (p.type==='na' && p.age > 400) { p.alpha -= 0.005; if(p.alpha<=0) p.alive=false; }
+    if (p.type==='ca' && p.age > 900) { p.alpha -= 0.002; if(p.alpha<=0) p.alive=false; }
+  }
+}
+
+function collide() {
+  for (let i=0; i<parts.length; i++) {
+    const a = parts[i];
+    if (!a.alive || a.bound || a.passing) continue;
+    for (let j=i+1; j<parts.length; j++) {
+      const b = parts[j];
+      if (!b.alive || b.bound || b.passing) continue;
+      if (a.reg !== b.reg) continue;
+      
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const md = a.r + b.r;
+      if (Math.abs(dx) > md || Math.abs(dy) > md) continue; 
+      const d = Math.sqrt(dx*dx + dy*dy);
+      if (d < md && d > 0.1) {
+        const nx = dx/d, ny = dy/d;
+        const ov = md - d;
+        const tm = a.m + b.m;
+        a.x -= nx * ov * b.m / tm; a.y -= ny * ov * b.m / tm;
+        b.x += nx * ov * a.m / tm; b.y += ny * ov * a.m / tm;
+        const dvn = (a.vx - b.vx)*nx + (a.vy - b.vy)*ny;
+        if (dvn > 0) {
+          const imp = dvn / tm * RES;
+          a.vx -= 2*b.m * imp * nx; a.vy -= 2*b.m * imp * ny;
+          b.vx += 2*a.m * imp * nx; b.vy += 2*a.m * imp * ny;
+        }
+      }
+    }
+  }
+}
+
+function updBind() {
+  ampas.forEach(a => {
+    if (!a.on || a.glu) return;
+    let best = null, bestD = ATT_R + 1;
+    parts.forEach(p => {
+      if (p.type !== 'glu' || p.bound || !p.alive || p.reg !== 'cl') return;
+      const dx = a.x - p.x, dy = BSY - p.y;
+      const d = Math.sqrt(dx*dx + dy*dy);
+      if (d < bestD) { bestD = d; best = p; }
+    });
+    if (best && bestD < ATT_R) {
+      const dx = a.x - best.x, dy = BSY - best.y;
+      best.vx += dx/bestD * ATT_F * 2; best.vy += dy/bestD * ATT_F * 2;
+      if (bestD < BIND_D) {
+        best.bound = true; best.bTo = a; best.x = a.x; best.y = BSY;
+        a.glu = best; a.open = true; a.bt = 0;
+        logTxt = 'Glu bound to AMPA — channel opens → Na⁺ flows in';
+      }
+    }
+  });
+
+  nmdas.forEach(n => {
+    if (n.glu) return;
+    let best = null, bestD = ATT_R + 1;
+    parts.forEach(p => {
+      if (p.type !== 'glu' || p.bound || !p.alive || p.reg !== 'cl') return;
+      const dx = (n.x-8) - p.x, dy = (BSY-2) - p.y;
+      const d = Math.sqrt(dx*dx + dy*dy);
+      if (d < bestD) { bestD = d; best = p; }
+    });
+    if (best && bestD < ATT_R) {
+      const dx = (n.x-8) - best.x, dy = (BSY-2) - best.y;
+      best.vx += dx/bestD * ATT_F * 2; best.vy += dy/bestD * ATT_F * 2;
+      if (bestD < BIND_D) {
+        best.bound = true; best.bTo = n; best.x = n.x-8; best.y = BSY-2;
+        n.glu = best; n.bt = 0;
+        if (n.mg) logTxt = 'Glu bound to NMDA — but Mg²⁺ blocks pore! Needs depolarization.';
+        else { n.open = true; logTxt = 'Glu bound to NMDA (Mg²⁺ gone) — Ca²⁺ flows!'; }
+      }
+    }
+  });
+
+  ampas.forEach(a => {
+    if (!a.glu) return; a.bt++;
+    if (a.bt > UNBIND_T) {
+      a.glu.bound = false; a.glu.bTo = null; a.glu.vy = -1.5; a.glu = null; a.open = false;
+    }
+  });
+  nmdas.forEach(n => {
+    if (!n.glu) return; n.bt++;
+    if (n.bt > UNBIND_T * 1.2) {
+      n.glu.bound = false; n.glu.bTo = null; n.glu.vy = -1.5; n.glu = null; n.open = false;
+    }
+  });
+
+  nmdas.forEach(n => {
+    if (n.mg && n.glu && Vm > -40) {
+      n.mg = false; n.open = true;
+      spawn('mg', n.x, MM, 'cl', (Math.random()-0.5)*3.5, -3.5-Math.random()*2);
+      logTxt = '⚡ Mg²⁺ expelled! Ca²⁺ channel OPEN!';
+    }
+  });
+}
+
+function updFlow() {
+  parts.forEach(p => {
+    if (!p.alive || p.bound || p.passing || p.reg !== 'cl') return;
+    let bD = CAP_R + 1, bCh = null, bx = 0, by = 0;
+    
+    if (p.type === 'na') {
+      ampas.forEach(a => {
+        if (!a.on || !a.open) return;
+        const dx = a.x - p.x, dy = (LY.mpT+4) - p.y;
+        const d = Math.sqrt(dx*dx + dy*dy);
+        if (d < bD) { bD = d; bCh = a; bx = dx; by = dy; }
+      });
+    }
+    else if (p.type === 'ca') {
+      nmdas.forEach(n => {
+        if (!n.open || n.mg) return;
+        const dx = n.x - p.x, dy = (LY.mpT+4) - p.y;
+        const d = Math.sqrt(dx*dx + dy*dy);
+        if (d < bD) { bD = d; bCh = n; bx = dx; by = dy; }
+      });
+    }
+
+    if (bCh && bD < CAP_R) {
+      // Flow force - stronger for Ca to ensure it visually enters
+      let force = FLOW_F;
+      if (p.type === 'ca') force = 0.9; // Strong suction for Ca
+
+      p.vx += bx/bD * force; p.vy += by/bD * force;
+      
+      // Removed single-file check "hasPasser" to prevent jamming
+      // Relaxed Y check to catch them earlier
+      if (bD < 14 && p.y > LY.mpT-8) {
+        p.passing = true; p.pCh = bCh; p.x = bCh.x; p.vx = 0; p.vy = 0;
+      }
+    }
+  });
+}
+
+function updLTP() {
+  const caP = parts.filter(p => p.type==='ca' && p.reg==='po' && p.alive).length;
+  if (caP >= 10 && !camkAct && ltpN < 2) {
+    camkAct = true; camkT = 200;
+    logTxt = '⚡ Ca²⁺ Threshold reached! CaMKII activated!';
+  }
+  if (camkAct) {
+    camkT--;
+    if (camkT <= 0) {
+      const sl = ampas.find(a => !a.on);
+      if (sl) {
+        sl.on = true; sl.iA = 80; ltpN++;
+        logTxt = '✓ New AMPA receptor inserted — Synapse Strengthened (LTP)!';
+      }
+      camkAct = false;
+    }
+  }
+  Vm += (-70 - Vm) * 0.0025;
+}
+
+// Controls
+function stim() {
+  stimN++; fusAnim = 50; fusX = vslDock[Math.floor(Math.random()*vslDock.length)].x;
+  setTimeout(() => {
+    const n = 6 + Math.floor(Math.random()*5);
+    for(let i=0; i<n; i++)
+      spawn('glu', fusX+(Math.random()-0.5)*40, LY.clT+8, 'cl', (Math.random()-0.5)*2.5, 1.5+Math.random()*2.5);
+    logTxt = `Vesicle fused → ${n} Glu released`;
+  }, 250);
+}
+
+function togAuto() {
+  autoOn = !autoOn; const b = document.getElementById('abtn');
+  if (autoOn) { b.textContent = '■ Stop Auto'; b.className = 'bt bs'; autoIv = setInterval(stim, 500); } 
+  else { b.textContent = '▶ Auto HFS'; b.className = 'bt ba'; clearInterval(autoIv); }
+}
+
+function fullReset() {
+  if(autoIv) clearInterval(autoIv); autoOn = false;
+  document.getElementById('abtn').textContent = '▶ Auto HFS';
+  document.getElementById('abtn').className = 'bt ba';
+  parts = []; Vm = -70; stimN = 0; ltpN = 0; camkAct = false; camkT = 0; fusAnim = 0;
+  logTxt = 'Press Stimulate to release glutamate.';
+  ampas = mkAmpas(); nmdas = mkNmdas(); initVsl(); maintain();
+}
+
+// Drawing
+function drawP(p) {
+  if (!p.alive || p.alpha <= 0 || p.bound) return;
+  const t = PT[p.type];
+  cx.save(); cx.globalAlpha = p.alpha;
+  cx.beginPath(); cx.arc(p.x, p.y, p.r+4, 0, Math.PI*2); cx.fillStyle = t.gw; cx.fill();
+  const g = cx.createRadialGradient(p.x-p.r*0.3, p.y-p.r*0.3, p.r*0.1, p.x, p.y, p.r);
+  g.addColorStop(0, t.c1); g.addColorStop(1, t.c2);
+  cx.beginPath(); cx.arc(p.x, p.y, p.r, 0, Math.PI*2); cx.fillStyle = g; cx.fill();
+  cx.strokeStyle = t.brd; cx.lineWidth = 1.2; cx.stroke();
+  cx.fillStyle = t.lc; cx.font = `bold ${t.fs}px system-ui`; 
+  cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(t.lb, p.x, p.y+0.5);
+  cx.restore();
+}
+
+function drawBilayer(y, col) {
+  cx.strokeStyle = col; cx.lineWidth = 2.5;
+  cx.beginPath(); cx.moveTo(LY.L-8, y); cx.lineTo(LY.R+8, y); cx.stroke();
+  cx.beginPath(); cx.moveTo(LY.L-8, y+MH); cx.lineTo(LY.R+8, y+MH); cx.stroke();
+  for(let x=LY.L; x<=LY.R; x+=9) {
+    let skip = false;
+    ampas.forEach(a => { if (a.on && Math.abs(x-a.x)<18) skip=true; });
+    nmdas.forEach(n => { if (Math.abs(x-n.x)<20) skip=true; });
+    ampas.forEach(a => { if (a.iA > 0 && Math.abs(x-a.x)<18) skip=true; });
+    if (skip) continue;
+    cx.beginPath(); cx.arc(x, y+3.5, 2.8, 0, Math.PI*2); cx.fillStyle=col; cx.fill();
+    cx.beginPath(); cx.arc(x, y+MH-3.5, 2.8, 0, Math.PI*2); cx.fillStyle=col; cx.fill();
+    cx.strokeStyle = col+'55'; cx.lineWidth = 0.6;
+    cx.beginPath(); cx.moveTo(x, y+6); cx.lineTo(x, y+MH-6); cx.stroke();
+  }
+  cx.fillStyle = col+'10'; cx.fillRect(LY.L-8, y, LY.R-LY.L+16, MH);
+}
+
+function drawAMPA(a) {
+  const x = a.x, my = LY.mpT;
+  if (!a.on) {
+    if (a.iA > 0) { a.iA--; cx.save(); cx.globalAlpha = 1 - a.iA/80; drawAMPABody(x, my, false, null); cx.restore(); if (a.iA <= 0) a.on = true; } 
+    else { cx.save(); cx.setLineDash([3,3]); cx.strokeStyle = '#94a3b844'; cx.lineWidth = 1; cx.strokeRect(x-18, my-4, 36, MH+8); cx.setLineDash([]); cx.restore(); }
+    return;
+  }
+  drawAMPABody(x, my, a.open, a.glu);
+}
+
+function drawAMPABody(x, my, open, glu) {
+  const sw = 12, sh = MH+10, pw = open ? 10 : 2, cupH = 16;
+  const lx = x - pw/2 - sw, rx = x + pw/2;
+  const fc = open ? '#fbbf24' : '#d4d4d8', sc = open ? '#d97706' : '#a1a1aa';
+  cx.fillStyle = fc; cx.strokeStyle = sc; cx.lineWidth = 1.5;
+  rr(lx, my-4, sw, sh, 3); cx.fill(); cx.stroke(); rr(rx, my-4, sw, sh, 3); cx.fill(); cx.stroke();
+  cx.beginPath(); cx.moveTo(lx+2, my-4); cx.lineTo(lx+2, my-cupH); cx.quadraticCurveTo(x, my-cupH-7, rx+sw-2, my-cupH); cx.lineTo(rx+sw-2, my-4);
+  cx.strokeStyle = sc; cx.lineWidth = 2; cx.stroke();
+  cx.beginPath(); cx.moveTo(x-9, my-4); cx.lineTo(x-9, my-cupH+4); cx.quadraticCurveTo(x, my-cupH-2, x+9, my-cupH+4); cx.lineTo(x+9, my-4);
+  cx.fillStyle = glu ? '#fef3c7aa' : '#f8fafc'; cx.fill();
+  if (glu) { cx.beginPath(); cx.arc(x, my-cupH/2-4, 5.5, 0, Math.PI*2); cx.fillStyle = '#f59e0b'; cx.fill(); cx.strokeStyle = '#b45309'; cx.lineWidth = 1; cx.stroke(); cx.fillStyle = '#78350f'; cx.font = 'bold 6px system-ui'; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText('Glu', x, my-cupH/2-3.5); } 
+  else { cx.fillStyle = '#cbd5e1'; cx.font = '6px system-ui'; cx.textAlign = 'center'; cx.fillText('bind', x, my-cupH/2-3); }
+  if (open) {
+    cx.fillStyle = '#fef9c366'; cx.fillRect(x-pw/2, my+1, pw, sh-12);
+    const iy = my + MH/2 + Math.sin(frame*0.18)*7;
+    cx.fillStyle = '#3b82f688'; cx.beginPath(); cx.arc(x, iy, 3, 0, Math.PI*2); cx.fill();
+    cx.fillStyle = '#1d4ed8'; cx.font = 'bold 5px system-ui'; cx.fillText('Na⁺', x, iy+0.5);
+    for(let i=0; i<3; i++) {
+      const ay = my + 4 + i*9 + (frame*1.5 + i*30)%28;
+      if (ay < my+sh-6) { cx.fillStyle = '#3b82f633'; cx.beginPath(); cx.moveTo(x-3, ay); cx.lineTo(x+3, ay); cx.lineTo(x, ay+4); cx.closePath(); cx.fill(); }
+    }
+  } else { cx.fillStyle = '#64748b'; cx.fillRect(x-0.8, my+4, 1.6, sh-16); }
+  cx.fillStyle = open ? '#b45309' : '#71717a'; cx.font = 'bold 8px system-ui'; cx.textAlign = 'center'; cx.fillText('AMPA', x, my+sh+6);
+}
+
+function drawNMDA(n) {
+  const x = n.x, my = LY.mpT;
+  const op = n.open && !n.mg, sw = 14, sh = MH+12, pw = op ? 12 : 3, cupH = 18;
+  const lx = x - pw/2 - sw, rx = x + pw/2;
+  const fc = op ? '#34d399' : '#bbf7d0', sc = op ? '#059669' : '#86efac';
+  cx.fillStyle = fc; cx.strokeStyle = sc; cx.lineWidth = 1.8;
+  rr(lx, my-5, sw, sh, 4); cx.fill(); cx.stroke(); rr(rx, my-5, sw, sh, 4); cx.fill(); cx.stroke();
+  cx.beginPath(); cx.moveTo(lx+3, my-5); cx.lineTo(lx+3, my-cupH); cx.quadraticCurveTo(x-pw/4, my-cupH-5, x-1, my-cupH); cx.lineTo(x-1, my-5);
+  cx.strokeStyle = n.glu ? '#d97706' : '#86efac'; cx.lineWidth = 1.5; cx.stroke();
+  if (n.glu) { cx.beginPath(); cx.arc(x-pw/2-sw/2-1, my-cupH/2-5, 5, 0, Math.PI*2); cx.fillStyle = '#f59e0b'; cx.fill(); cx.strokeStyle = '#b45309'; cx.lineWidth = 0.8; cx.stroke(); cx.fillStyle = '#78350f'; cx.font = 'bold 5px system-ui'; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText('Glu', x-pw/2-sw/2-1, my-cupH/2-4.5); }
+  cx.beginPath(); cx.moveTo(x+1, my-5); cx.lineTo(x+1, my-cupH); cx.quadraticCurveTo(x+pw/4+sw/2, my-cupH-5, rx+sw-3, my-cupH); cx.lineTo(rx+sw-3, my-5);
+  cx.strokeStyle = '#c084fc'; cx.lineWidth = 1.5; cx.stroke();
+  cx.beginPath(); cx.arc(x+pw/2+sw/2+1, my-cupH/2-5, 4, 0, Math.PI*2);cx.fillStyle = '#c084fc'; cx.fill(); cx.strokeStyle = '#9333ea'; cx.lineWidth = 0.7; cx.stroke();cx.fillStyle = '#fff'; cx.font = 'bold 4.5px system-ui'; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText('Gly', x+pw/2+sw/2+1, my-cupH/2-4.5);
+  if (n.mg) {
+    cx.fillStyle = '#52525b'; cx.fillRect(x-1, my+4, 2, sh-18);
+    const mg = cx.createRadialGradient(x-1.5, MM-1, 1, x, MM, 7.5);
+    mg.addColorStop(0, '#e9d5ff'); mg.addColorStop(1, '#7c3aed');
+    cx.beginPath(); cx.arc(x, MM, 7.5, 0, Math.PI*2); cx.fillStyle = mg; cx.fill(); cx.strokeStyle = '#5b21b6'; cx.lineWidth = 1.2; cx.stroke();
+    cx.fillStyle = '#fff'; cx.font = 'bold 6.5px system-ui'; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText('Mg²⁺', x, MM+0.5);
+  } else if (op) {
+    cx.fillStyle = '#d1fae544'; cx.fillRect(x-pw/2, my, pw, sh-12);
+    const iy = my + MH/2 + Math.sin(frame*0.14)*7;
+    cx.fillStyle = '#dc262666'; cx.beginPath(); cx.arc(x, iy, 3.5, 0, Math.PI*2); cx.fill(); cx.fillStyle = '#fff'; cx.font = 'bold 5px system-ui'; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText('Ca²⁺', x, iy+0.5);
+    for(let i=0; i<3; i++) {
+        const ay = my + 4 + i*9 + (frame*1.2 + i*25)%28;
+        if (ay < my+sh-8) { cx.fillStyle = '#dc262633'; cx.beginPath(); cx.moveTo(x-3, ay); cx.lineTo(x+3, ay); cx.lineTo(x, ay+4); cx.closePath(); cx.fill(); }
+    }
+  } else { cx.fillStyle = '#52525b'; cx.fillRect(x-1, my+4, 2, sh-18); }
+  cx.fillStyle = '#059669'; cx.font = 'bold 8px system-ui'; cx.textAlign = 'center'; cx.fillText('NMDA', x, my+sh+8);
+}
+
+function drawVesicles() {
+  const all = [...vslRes, ...vslDock];
+  all.forEach(v => {
+    cx.save();
+    const g = cx.createRadialGradient(v.x-v.r*0.3, v.y-v.r*0.3, v.r*0.1, v.x, v.y, v.r);
+    g.addColorStop(0, '#67e8f9'); g.addColorStop(1, '#06b6d4');
+    cx.beginPath(); cx.arc(v.x, v.y, v.r, 0, Math.PI*2); cx.fillStyle = g; cx.fill(); cx.strokeStyle = '#0891b2'; cx.lineWidth = 1.3; cx.stroke();
+    for(let i=0; i<3; i++) { const ang = (i/3)*Math.PI*2 + 0.5; const dx = Math.cos(ang)*v.r*0.4, dy = Math.sin(ang)*v.r*0.4; cx.beginPath(); cx.arc(v.x+dx, v.y+dy, 2.2, 0, Math.PI*2); cx.fillStyle = '#f59e0b'; cx.fill(); }
+    cx.restore();
+  });
+  if (fusAnim > 0) {
+    const pr = 1 - fusAnim/50; cx.save(); cx.globalAlpha = 1 - pr*0.6; cx.beginPath(); cx.arc(fusX, LY.preB-10, 16*(1+pr*0.6), 0, Math.PI*2); cx.fillStyle = '#67e8f9'; cx.fill();
+    if (pr > 0.25) { cx.beginPath(); cx.arc(fusX, LY.preB+2, 4+pr*10, 0, Math.PI, false); cx.fillStyle = 'rgba(245,158,11,0.4)'; cx.fill(); }
+    cx.restore(); fusAnim--;
+  }
+}
+
+function drawCaGlow() {
+  const cc = parts.filter(p => p.type==='ca' && p.reg==='po' && p.alive).length;
+  if (cc < 1) return;
+  const I = Math.min(0.28, cc * 0.03);
+  const g = cx.createRadialGradient(W/2, (LY.poT+LY.poB)/2, 10, W/2, (LY.poT+LY.poB)/2, 260);
+  g.addColorStop(0, `rgba(251,191,36,${I})`); g.addColorStop(1, 'rgba(251,191,36,0)');
+  cx.fillStyle = g; cx.fillRect(LY.L-8, LY.poT-4, LY.R-LY.L+16, LY.poB-LY.poT+8);
+}
+
+function drawCaMKII() {
+  if (!camkAct) return;
+  const puls = 0.6 + 0.4*Math.sin(frame*0.12);
+  cx.save(); cx.globalAlpha = puls;
+  const mx = W/2, my = (LY.poT+LY.poB)/2 + 15;
+  for(let i=0; i<12; i++) {
+    const a = (i/12)*Math.PI*2 + frame*0.01;
+    const lx = mx + Math.cos(a)*28, ly = my + Math.sin(a)*28;
+    cx.beginPath(); cx.arc(lx, ly, 7, 0, Math.PI*2); cx.fillStyle = '#0891b2'; cx.fill(); cx.strokeStyle = '#0e7490'; cx.lineWidth = 1; cx.stroke();
+    cx.fillStyle = '#fff'; cx.font = 'bold 6px system-ui'; cx.textAlign='center'; cx.textBaseline='middle'; cx.fillText('P', lx, ly+0.5);
+  }
+  cx.fillStyle = '#0e7490'; cx.font = 'bold 13px system-ui'; cx.textAlign='center'; cx.fillText('CaMKII', mx, my+2);
+  cx.restore();
+}
+
+function drawVmGauge() {
+  const gx = LY.R+18, gy = LY.mpT-30, gh = MH+80, gw = 12;
+  cx.fillStyle = '#e2e8f0'; rr(gx, gy, gw, gh, 4); cx.fill();
+  const fr = Math.max(0, Math.min(1, (Vm+70)/65)); const fh = gh * fr;
+  cx.fillStyle = fr > 0.45 ? '#f59e0b' : '#818cf8'; rr(gx, gy+gh-fh, gw, fh, 4); cx.fill();
+  const thFr = 30/65; cx.strokeStyle = '#dc2626'; cx.lineWidth = 1.5; cx.beginPath(); cx.moveTo(gx-3, gy+gh-gh*thFr); cx.lineTo(gx+gw+3, gy+gh-gh*thFr); cx.stroke();
+  cx.fillStyle = '#64748b'; cx.font = 'bold 7px system-ui'; cx.textAlign='center'; cx.fillText('Vm', gx+gw/2, gy-5);
+  cx.fillStyle = '#dc2626'; cx.font = '6px system-ui'; cx.fillText('−40', gx+gw+16, gy+gh-gh*thFr+3);
+}
+
+function drawAttrLines() {
+  parts.forEach(p => {
+    if (p.type !== 'glu' || p.bound || !p.alive || p.reg !== 'cl') return;
+    let best = null, bD = ATT_R+1;
+    ampas.forEach(a => { if (!a.on || a.glu) return; const d = Math.sqrt(Math.pow(a.x-p.x,2) + Math.pow(BSY-p.y,2)); if (d < bD) { bD = d; best = {x:a.x, y:BSY}; } });
+    nmdas.forEach(n => { if (n.glu) return; const d = Math.sqrt(Math.pow((n.x-8)-p.x,2) + Math.pow((BSY-2)-p.y,2)); if (d < bD) { bD = d; best = {x:n.x-8, y:BSY-2}; } });
+    if (best && bD < ATT_R) { cx.strokeStyle = 'rgba(217,119,6,0.2)'; cx.lineWidth = 1; cx.setLineDash([2,3]); cx.beginPath(); cx.moveTo(p.x, p.y); cx.lineTo(best.x, best.y); cx.stroke(); cx.setLineDash([]); }
+  });
+}
+
+function updUI() {
+  document.getElementById('vmR').textContent = Vm.toFixed(1) + ' mV';
+  const caP = parts.filter(p => p.type==='ca' && p.reg==='po' && p.alive).length;
+  document.getElementById('caR').textContent = caP + ' ions';
+  document.getElementById('caBar').style.width = Math.min(100, caP/10*100) + '%';
+  document.getElementById('amR').textContent = ampas.filter(a => a.on).length;
+  document.getElementById('stR').textContent = stimN;
+  document.getElementById('logB').textContent = logTxt;
+}
+
+function loop() {
+  frame++; cx.clearRect(0,0,W*D,H*D);
+  maintain(); updBind(); updFlow(); updLTP(); collide(); parts.forEach(updPart);
+  cx.fillStyle = '#f1f5f9'; cx.fillRect(LY.L, LY.preT, LY.R-LY.L, LY.poB-LY.poT);
+
+  const preG = cx.createLinearGradient(W/2, LY.preT, W/2, LY.preB); preG.addColorStop(0, '#cffafe'); preG.addColorStop(1, '#a5f3fc');
+  cx.fillStyle = preG; cx.fillRect(LY.L, LY.preT, LY.R-LY.L, LY.preB-LY.preT);
+  cx.strokeStyle = '#22d3ee'; cx.lineWidth = 2; cx.beginPath(); cx.moveTo(LY.L, LY.preT); cx.lineTo(LY.L, LY.preB); cx.lineTo(LY.R, LY.preB); cx.lineTo(LY.R, LY.preT); cx.stroke();
+  cx.fillStyle = '#0891b2'; cx.font = 'bold 12px system-ui'; cx.textAlign='left'; cx.fillText('Presynaptic Terminal', LY.L+10, LY.preT+20);
+
+  cx.fillStyle = '#f8fafc'; cx.fillRect(LY.L, LY.clT, LY.R-LY.L, LY.clB-LY.clT);
+
+  const postG = cx.createLinearGradient(W/2, LY.poT, W/2, LY.poB); postG.addColorStop(0, '#e0e7ff'); postG.addColorStop(1, '#c7d2fe');
+  cx.fillStyle = postG; cx.fillRect(LY.L, LY.poT, LY.R-LY.L, LY.poB-LY.poT); drawCaGlow();
+  cx.strokeStyle = '#818cf8'; cx.lineWidth = 2; cx.beginPath(); cx.moveTo(LY.L, LY.poB); cx.lineTo(LY.L, LY.poT); cx.lineTo(LY.R, LY.poT); cx.lineTo(LY.R, LY.poB); cx.stroke();
+  cx.fillStyle = '#4338ca'; cx.font = 'bold 12px system-ui'; cx.textAlign='left'; cx.fillText('Postsynaptic Spine', LY.L+10, LY.poB-10);
+
+  drawVesicles(); drawBilayer(LY.preB-3, '#0ea5e9'); drawBilayer(LY.mpT-3, '#6366f1');
+  ampas.forEach(drawAMPA); nmdas.forEach(drawNMDA); drawCaMKII(); drawAttrLines();
+  parts.forEach(p => { if (!p.bound) drawP(p); }); parts.forEach(p => { if (p.bound) drawP(p); });
+  drawVmGauge(); updUI(); requestAnimationFrame(loop);
+}
+
+maintain(); loop();
+</script>
+</body>
+</html>
