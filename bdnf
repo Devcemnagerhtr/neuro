@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BDNF Production — Physics Simulation</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #dfe6ed;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 10px 10px 20px; min-height: 100vh;
+  }
+  h1 { font-size: 1.25rem; color: #1e293b; margin-top: 4px; }
+  .sub { color: #64748b; font-size: 0.8rem; margin-bottom: 8px; }
+  .lay { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  .cw { background: #fff; border-radius: 12px; box-shadow: 0 2px 14px rgba(0,0,0,0.1); padding: 6px; }
+  canvas { display: block; border-radius: 8px; cursor: crosshair; }
+  .pn { background: #fff; border-radius: 12px; box-shadow: 0 2px 14px rgba(0,0,0,0.1); padding: 14px 16px; width: 260px; display: flex; flex-direction: column; gap: 9px; font-size: 0.84rem; }
+  .pn h2 { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin: 4px 0 0 0; }
+  .param-row { margin-bottom: 2px; }
+  .param-label { display: flex; justify-content: space-between; color: #475569; font-size: 0.75rem; font-weight: 500; margin-bottom: 2px; }
+  .param-val { color: #0891b2; font-family: monospace; font-weight: 700; }
+  input[type="range"] { width: 100%; height: 4px; background: #e2e8f0; border-radius: 2px; -webkit-appearance: none; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; background: #0891b2; border-radius: 50%; cursor: pointer; }
+  .bt { padding: 9px; border: none; border-radius: 7px; font-weight: 700; font-size: 0.84rem; cursor: pointer; width: 100%; transition: transform 0.1s; }
+  .bt:hover { transform: translateY(-1px); filter: brightness(1.06); }
+  .bg { background: #0891b2; color: #fff; }
+  .ba { background: #7c3aed; color: #fff; }
+  .bs { background: #e11d48; color: #fff; }
+  .br { background: #e2e8f0; color: #64748b; }
+  .ro { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 7px; padding: 6px 9px; display: flex; justify-content: space-between; align-items: center; }
+  .ro .lb { font-size: 0.65rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.4px; }
+  .ro .vl { font-size: 1rem; font-weight: 700; font-family: 'Courier New', monospace; }
+  .lg { font-size: 0.72rem; color: #334155; min-height: 38px; background: #fefce8; border: 1px solid #fef08a; border-radius: 7px; padding: 7px; line-height: 1.35; font-weight: 500; }
+  .prog-wrap { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 7px; padding: 6px 9px; }
+  .prog-wrap .lb { font-size: 0.65rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 3px; }
+  .prog-outer { height: 10px; background: #e2e8f0; border-radius: 6px; overflow: hidden; position: relative; }
+  .prog-fill { height: 100%; border-radius: 6px; transition: width 0.2s; }
+  .prog-mark { position: absolute; top: -1px; bottom: -1px; width: 2px; background: #dc2626; border-radius: 2px; z-index: 2; }
+  .prog-label { display: flex; justify-content: space-between; font-size: 0.62rem; color: #94a3b8; margin-top: 2px; }
+</style>
+</head>
+<body>
+<h1>BDNF Production Pathway</h1>
+<p class="sub">Ca²⁺ → CaMKII → ERK → CREB → mRNA → BDNF — all particles have physics</p>
+<div class="lay">
+<div class="cw"><canvas id="c"></canvas></div>
+<div class="pn">
+  <h2>Controls</h2>
+  <div style="display:flex;gap:6px">
+    <button class="bt bg" onclick="stim()">⚡ Ca²⁺ Burst</button>
+    <button class="bt ba" id="abtn" onclick="togAuto()">▶ Auto</button>
+  </div>
+  <button class="bt br" onclick="fullReset()">Reset</button>
+  <h2>Extracellular Ca²⁺</h2>
+  <div class="param-row">
+    <div class="param-label">Concentration <span class="param-val" id="valCa">12</span></div>
+    <input type="range" id="slCa" min="0" max="40" value="12" oninput="updIon()">
+  </div>
+  <h2>Readouts</h2>
+  <div class="prog-wrap">
+    <div class="lb">CREB Activation → Transcription</div>
+    <div class="prog-outer"><div class="prog-fill" id="crebBar" style="width:0%;background:#8b5cf6"></div><div class="prog-mark" style="left:30%"></div></div>
+    <div class="prog-label"><span id="crebR">0%</span><span>Threshold: 30%</span></div>
+  </div>
+  <div class="prog-wrap">
+    <div class="lb">CaMKII Activation</div>
+    <div class="prog-outer"><div class="prog-fill" id="camkBar" style="width:0%;background:#d97706"></div><div class="prog-mark" style="left:40%"></div></div>
+    <div class="prog-label"><span id="camkR">0%</span><span>ERK Threshold: 40%</span></div>
+  </div>
+  <div class="ro"><div class="lb">Ca²⁺ in Cytoplasm</div><div class="vl" id="caV" style="color:#dc2626">0</div></div>
+  <div class="ro"><div class="lb">BDNF Produced</div><div class="vl" id="bdnfV" style="color:#10b981">0</div></div>
+  <div class="ro"><div class="lb">Stimulations</div><div class="vl" id="stimV" style="color:#475569">0</div></div>
+  <h2>Status Log</h2>
+  <div class="lg" id="logB">Press ⚡ to trigger Ca²⁺ influx through open channels.</div>
+</div>
+</div>
+<script>
+const cv=document.getElementById('c'),cx=cv.getContext('2d');
+const W=860,H=660,D=window.devicePixelRatio||1;
+cv.width=W*D;cv.height=H*D;cv.style.width=W+'px';cv.style.height=H+'px';
+cx.setTransform(D,0,0,D,0,0);
+
+// ═══ LAYOUT — same coordinates as LTP sim ═══
+const LY={extT:5,extB:145,clT:154,clB:388,mpT:388,mpB:420,nucT:424,nucB:625,L:50,R:810};
+const MH=LY.mpB-LY.mpT,MM=(LY.mpT+LY.mpB)/2;
+const DNA_Y=555;
+
+function rr(x,y,w,h,r){cx.beginPath();cx.moveTo(x+r,y);cx.lineTo(x+w-r,y);cx.quadraticCurveTo(x+w,y,x+w,y+r);cx.lineTo(x+w,y+h-r);cx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);cx.lineTo(x+r,y+h);cx.quadraticCurveTo(x,y+h,x,y+h-r);cx.lineTo(x,y+r);cx.quadraticCurveTo(x,y,x+r,y);cx.closePath()}
+
+// ═══ PARTICLE TYPES — same format as LTP sim ═══
+const PT={
+  ca:  {r:6,m:1.0,c1:'#fee2e2',c2:'#dc2626',brd:'#b91c1c',gw:'rgba(220,38,38,0.16)',lb:'Ca²⁺',lc:'#fff',fs:6},
+  erk: {r:6,m:0.8,c1:'#bfdbfe',c2:'#2563eb',brd:'#1d4ed8',gw:'rgba(59,130,246,0.14)',lb:'ERK',lc:'#fff',fs:6.5},
+  mrna:{r:7,m:0.7,c1:'#ede9fe',c2:'#8b5cf6',brd:'#7c3aed',gw:'rgba(139,92,246,0.2)',lb:'mRNA',lc:'#fff',fs:5},
+  bdnf:{r:7,m:1.2,c1:'#d1fae5',c2:'#10b981',brd:'#047857',gw:'rgba(16,185,129,0.22)',lb:'BDNF',lc:'#fff',fs:5.5}
+};
+
+// ═══ STATE ═══
+let parts=[],frame=0,stimN=0,bdnfTotal=0,autoOn=false,autoIv=null;
+let logTxt='Press ⚡ to trigger Ca²⁺ influx through open channels.';
+let targetCa=12;
+let camk={x:430,y:185,act:0,timer:0};
+let crebAct=0;
+
+// ═══ STRUCTURES ═══
+const caChannels=[{x:200},{x:430},{x:660}];
+const nucPores=[{x:300},{x:560}];
+const ribosomes=[{x:160,y:280},{x:700,y:265}];
+
+// ═══ CORE FUNCTIONS ═══
+function updIon(){targetCa=parseInt(document.getElementById('slCa').value);document.getElementById('valCa').textContent=targetCa}
+
+function spawn(type,x,y,reg,vx,vy){
+  const t=PT[type];
+  parts.push({type,x,y,vx:vx||(Math.random()-.5)*1.5,vy:vy||(Math.random()-.5)*1.5,r:t.r,m:t.m,reg,alive:true,passing:false,pCh:null,alpha:1,age:0});
+}
+
+function maintain(){
+  const cur=parts.filter(p=>p.type==='ca'&&p.reg==='ext'&&p.alive&&!p.passing);
+  if(cur.length<targetCa&&Math.random()<0.08) spawn('ca',LY.L+30+Math.random()*(LY.R-LY.L-60),LY.extT+15+Math.random()*(LY.extB-LY.extT-30),'ext');
+  if(cur.length>targetCa){const p=cur[Math.floor(Math.random()*cur.length)];if(p)p.alive=false}
+}
+
+// ═══ PHYSICS ═══
+function updPart(p){
+  if(!p.alive)return;p.age++;
+  
+  // Passing through channels/pores (no physics)
+  if(p.passing){
+    if(p.type==='mrna'){p.y-=3.5;p.x+=(p.pCh.x-p.x)*0.2;if(p.y<LY.mpT-3-10){p.passing=false;p.reg='cyto';p.vy=-1.5;p.vx=(Math.random()-.5)*2;p.pCh=null;logTxt='mRNA exported → heading to ribosome'}}
+    else if(p.type==='erk'){p.y+=3.5;p.x+=(p.pCh.x-p.x)*0.2;if(p.y>LY.mpB+10){p.passing=false;p.reg='nuc';p.vy=1;p.vx=(Math.random()-.5)*2;p.pCh=null;crebAct=Math.min(100,crebAct+20);logTxt='⚡ ERK phosphorylates CREB in nucleus!'}}
+    else if(p.type==='ca'){p.y+=3.5;p.x+=(p.pCh.x-p.x)*0.2;if(p.y>LY.extB-3+MH+10){p.passing=false;p.reg='cyto';p.vy=1.5;p.vx=(Math.random()-.5)*2;p.pCh=null;logTxt='Ca²⁺ entered cytoplasm → seeking CaMKII'}}
+    return;
+  }
+
+  // Standard Brownian Physics
+  p.vx+=(Math.random()-.5)*0.16;
+  p.vy+=(Math.random()-.5)*0.16;
+  
+  // Damping
+  p.vx*=0.996;p.vy*=0.996;
+  const sp=Math.sqrt(p.vx*p.vx+p.vy*p.vy);if(sp>3.5){p.vx*=3.5/sp;p.vy*=3.5/sp}
+  p.x+=p.vx;p.y+=p.vy;
+
+  // Boundary Checks
+  if(p.reg==='ext'){
+    if(p.x-p.r<LY.L){p.x=LY.L+p.r;p.vx=Math.abs(p.vx)*.75}
+    if(p.x+p.r>LY.R){p.x=LY.R-p.r;p.vx=-Math.abs(p.vx)*.75}
+    if(p.y-p.r<LY.extT){p.y=LY.extT+p.r;p.vy=Math.abs(p.vy)*.75}
+    if(p.y+p.r>LY.extB-5){p.y=LY.extB-5-p.r;p.vy=-Math.abs(p.vy)*.75}
+  }else if(p.reg==='cyto'){
+    if(p.x-p.r<LY.L){p.x=LY.L+p.r;p.vx=Math.abs(p.vx)*.75}
+    if(p.x+p.r>LY.R){p.x=LY.R-p.r;p.vx=-Math.abs(p.vx)*.75}
+    if(p.y-p.r<LY.clT){p.y=LY.clT+p.r;p.vy=Math.abs(p.vy)*.75}
+    if(p.y+p.r>LY.clB){p.y=LY.clB-p.r;p.vy=-Math.abs(p.vy)*.75}
+    
+    // Interactions
+    if(p.type==='ca'){
+      const dx=camk.x-p.x,dy=camk.y-p.y,d=Math.sqrt(dx*dx+dy*dy);
+      if(d<80){p.vx+=dx/d*0.2;p.vy+=dy/d*0.2;if(d<15){camk.act=Math.min(100,camk.act+18);p.alive=false;logTxt='Ca²⁺ bound CaMKII → kinase activation ↑'}}
+    }
+    if(p.type==='mrna'){
+      let bD=80,bR=null;
+      ribosomes.forEach(r=>{const d=Math.sqrt(Math.pow(r.x-p.x,2)+Math.pow(r.y-p.y,2));if(d<bD){bD=d;bR=r}});
+      if(bR){p.vx+=(bR.x-p.x)/bD*0.15;p.vy+=(bR.y-p.y)/bD*0.15;
+        if(bD<14){p.alive=false;spawn('bdnf',bR.x+(Math.random()-.5)*20,bR.y-10,'cyto',(Math.random()-.5)*1.5,-0.5);bdnfTotal++;logTxt='✓ Ribosome translates mRNA → BDNF!'}}
+    }
+    if(p.type==='bdnf'&&p.age>800){p.alpha-=0.003;if(p.alpha<=0)p.alive=false}
+    
+    // ERK drifts down gently but freely (no clustering)
+    if(p.type==='erk'){p.vy+=0.04;} 
+  }else if(p.reg==='nuc'){
+    if(p.x-p.r<LY.L){p.x=LY.L+p.r;p.vx=Math.abs(p.vx)*.75}
+    if(p.x+p.r>LY.R){p.x=LY.R-p.r;p.vx=-Math.abs(p.vx)*.75}
+    if(p.y-p.r<LY.nucT){p.y=LY.nucT+p.r;p.vy=Math.abs(p.vy)*.75}
+    if(p.y+p.r>LY.nucB){p.y=LY.nucB-p.r;p.vy=-Math.abs(p.vy)*.75}
+    if(p.type==='erk'){p.alpha-=0.008;if(p.alpha<=0)p.alive=false}
+  }
+}
+
+function collide(){
+  for(let i=0;i<parts.length;i++){const a=parts[i];if(!a.alive||a.passing)continue;
+    for(let j=i+1;j<parts.length;j++){const b=parts[j];if(!b.alive||b.passing)continue;if(a.reg!==b.reg)continue;
+      const dx=b.x-a.x,dy=b.y-a.y,md=a.r+b.r;if(Math.abs(dx)>md||Math.abs(dy)>md)continue;
+      const d=Math.sqrt(dx*dx+dy*dy);if(d<md&&d>0.1){const nx=dx/d,ny=dy/d,ov=md-d,tm=a.m+b.m;
+        a.x-=nx*ov*b.m/tm;a.y-=ny*ov*b.m/tm;b.x+=nx*ov*a.m/tm;b.y+=ny*ov*a.m/tm;
+        const dvn=(a.vx-b.vx)*nx+(a.vy-b.vy)*ny;if(dvn>0){const imp=dvn/tm*.75;
+          a.vx-=2*b.m*imp*nx;a.vy-=2*b.m*imp*ny;b.vx+=2*a.m*imp*nx;b.vy+=2*a.m*imp*ny}}}}
+}
+
+function updFlow(){
+  parts.forEach(p=>{if(!p.alive||p.passing)return;
+    // Ca²⁺ in ext → channels
+    if(p.type==='ca'&&p.reg==='ext'){
+      let bD=50,bCh=null,bx=0,by=0;
+      caChannels.forEach(ch=>{const dx=ch.x-p.x,dy=(LY.extB-3+4)-p.y,d=Math.sqrt(dx*dx+dy*dy);if(d<bD){bD=d;bCh=ch;bx=dx;by=dy}});
+      if(bCh&&bD<50){p.vx+=bx/bD*0.6;p.vy+=by/bD*0.6;if(bD<14&&p.y>LY.extB-12){p.passing=true;p.pCh=bCh;p.x=bCh.x;p.vx=0;p.vy=0}}
+    }
+    // ERK in cyto → nuclear pores
+    if(p.type==='erk'&&p.reg==='cyto'){
+      let bD=70,bCh=null,bx=0,by=0;
+      nucPores.forEach(np=>{const dx=np.x-p.x,dy=(LY.mpT-3+4)-p.y,d=Math.sqrt(dx*dx+dy*dy);if(d<bD){bD=d;bCh=np;bx=dx;by=dy}});
+      if(bCh&&bD<70){p.vx+=bx/bD*0.35;p.vy+=by/bD*0.35;if(bD<14&&p.y>LY.clB-12){p.passing=true;p.pCh=bCh;p.x=bCh.x;p.vx=0;p.vy=0}}
+    }
+    // mRNA in nuc → nuclear pores (upward)
+    if(p.type==='mrna'&&p.reg==='nuc'){
+      let bD=80,bCh=null,bx=0,by=0;
+      nucPores.forEach(np=>{const dx=np.x-p.x,dy=(LY.nucT+5)-p.y,d=Math.sqrt(dx*dx+dy*dy);if(d<bD){bD=d;bCh=np;bx=dx;by=dy}});
+      if(bCh&&bD<80){p.vx+=bx/bD*0.4;p.vy+=by/bD*0.4;if(bD<14&&p.y<LY.nucT+12){p.passing=true;p.pCh=bCh;p.x=bCh.x;p.vx=0;p.vy=0}}
+    }
+  });
+}
+
+function updCascade(){
+  camk.act=Math.max(0,camk.act-0.12);
+  if(camk.act>40){camk.timer++;if(camk.timer%30===0){spawn('erk',camk.x+(Math.random()-.5)*30,camk.y+20,'cyto',0,1.5);logTxt='CaMKII → Ras/Raf/MEK → ERK produced'}}
+  else camk.timer=0;
+  crebAct=Math.max(0,crebAct-0.06);
+  if(crebAct>30&&frame%25===0)spawn('mrna',430+(Math.random()-.5)*80,DNA_Y-10,'nuc',(Math.random()-.5),-0.5);
+}
+
+// ═══ CONTROLS ═══
+function stim(){stimN++;for(let i=0;i<10;i++)spawn('ca',LY.L+40+Math.random()*(LY.R-LY.L-80),LY.extT+10+Math.random()*(LY.extB-LY.extT-20),'ext',(Math.random()-.5)*2,1+Math.random());logTxt='Ca²⁺ burst (NMDA channels open)'}
+function togAuto(){autoOn=!autoOn;const b=document.getElementById('abtn');if(autoOn){b.textContent='■ Stop';b.className='bt bs';autoIv=setInterval(stim,600)}else{b.textContent='▶ Auto';b.className='bt ba';clearInterval(autoIv)}}
+function fullReset(){if(autoIv)clearInterval(autoIv);autoOn=false;document.getElementById('abtn').textContent='▶ Auto';document.getElementById('abtn').className='bt ba';parts=[];frame=0;stimN=0;bdnfTotal=0;camk.act=0;camk.timer=0;crebAct=0;logTxt='Press ⚡ to trigger Ca²⁺ influx through open channels.';updUI()}
+
+// ═══ DRAWING ═══
+
+function drawP(p){
+  if(!p.alive||p.alpha<=0)return;const t=PT[p.type];
+  cx.save();cx.globalAlpha=p.alpha;
+  cx.beginPath();cx.arc(p.x,p.y,t.r+4,0,Math.PI*2);cx.fillStyle=t.gw;cx.fill();
+  const g=cx.createRadialGradient(p.x-t.r*.3,p.y-t.r*.3,t.r*.1,p.x,p.y,t.r);
+  g.addColorStop(0,t.c1);g.addColorStop(1,t.c2);
+  cx.beginPath();cx.arc(p.x,p.y,t.r,0,Math.PI*2);cx.fillStyle=g;cx.fill();
+  cx.strokeStyle=t.brd;cx.lineWidth=1.2;cx.stroke();
+  cx.fillStyle=t.lc;cx.font=`bold ${t.fs}px system-ui`;cx.textAlign='center';cx.textBaseline='middle';
+  cx.fillText(t.lb,p.x,p.y+.5);cx.restore();
+}
+
+function drawBilayer(y,col,skipFn){
+  cx.strokeStyle=col;cx.lineWidth=2.5;
+  cx.beginPath();cx.moveTo(LY.L-8,y);cx.lineTo(LY.R+8,y);cx.stroke();
+  cx.beginPath();cx.moveTo(LY.L-8,y+MH);cx.lineTo(LY.R+8,y+MH);cx.stroke();
+  for(let x=LY.L;x<=LY.R;x+=9){
+    if(skipFn&&skipFn(x))continue;
+    cx.beginPath();cx.arc(x,y+3.5,2.8,0,Math.PI*2);cx.fillStyle=col;cx.fill();
+    cx.beginPath();cx.arc(x,y+MH-3.5,2.8,0,Math.PI*2);cx.fillStyle=col;cx.fill();
+    cx.strokeStyle=col+'55';cx.lineWidth=.6;
+    cx.beginPath();cx.moveTo(x,y+6);cx.lineTo(x,y+MH-6);cx.stroke();
+  }
+  cx.fillStyle=col+'10';cx.fillRect(LY.L-8,y,LY.R-LY.L+16,MH);
+}
+
+function drawCaCh(ch){
+  const x=ch.x,my=LY.extB-3;const sw=12,sh=MH+10,pw=10;
+  const lx=x-pw/2-sw,rx=x+pw/2;
+  cx.fillStyle='#34d399';cx.strokeStyle='#059669';cx.lineWidth=1.8;
+  rr(lx,my-4,sw,sh,4);cx.fill();cx.stroke();rr(rx,my-4,sw,sh,4);cx.fill();cx.stroke();
+  cx.beginPath();cx.moveTo(lx+3,my-4);cx.lineTo(lx+3,my-16);cx.quadraticCurveTo(x,my-22,rx+sw-3,my-16);cx.lineTo(rx+sw-3,my-4);
+  cx.strokeStyle='#059669';cx.lineWidth=1.5;cx.stroke();
+  cx.fillStyle='#d1fae544';cx.fillRect(x-pw/2,my,pw,sh-12);
+  for(let i=0;i<3;i++){const ay=my+4+i*8+(frame*1.2+i*22)%26;if(ay<my+sh-8){cx.fillStyle='#dc262633';cx.beginPath();cx.moveTo(x-3,ay);cx.lineTo(x+3,ay);cx.lineTo(x,ay+4);cx.closePath();cx.fill()}}
+  cx.fillStyle='#059669';cx.font='bold 8px system-ui';cx.textAlign='center';cx.fillText('Ca²⁺ Ch.',x,my+sh+6);
+}
+
+function drawNucPore(np){
+  const x=np.x,my=LY.mpT-3;const sw=14,sh=MH+10,pw=14;
+  const lx=x-pw/2-sw,rx=x+pw/2;
+  cx.fillStyle='#a5b4fc';cx.strokeStyle='#6366f1';cx.lineWidth=1.8;
+  rr(lx,my-4,sw,sh,4);cx.fill();cx.stroke();rr(rx,my-4,sw,sh,4);cx.fill();cx.stroke();
+  cx.beginPath();cx.moveTo(lx+3,my-4);cx.lineTo(lx+3,my-10);cx.quadraticCurveTo(x,my-14,rx+sw-3,my-10);cx.lineTo(rx+sw-3,my-4);cx.strokeStyle='#6366f1';cx.lineWidth=1.5;cx.stroke();
+  cx.beginPath();cx.moveTo(lx+3,my+sh-6);cx.lineTo(lx+3,my+sh);cx.quadraticCurveTo(x,my+sh+4,rx+sw-3,my+sh);cx.lineTo(rx+sw-3,my+sh-6);cx.stroke();
+  cx.fillStyle='#e0e7ff44';cx.fillRect(x-pw/2,my,pw,sh-8);
+  for(let i=0;i<2;i++){const ay=my+6+(frame*1+i*18)%22;if(ay<my+sh-10){cx.fillStyle='#6366f133';cx.beginPath();cx.moveTo(x-5,ay);cx.lineTo(x-1,ay);cx.lineTo(x-3,ay+4);cx.closePath();cx.fill();cx.beginPath();cx.moveTo(x+1,ay+4);cx.lineTo(x+5,ay+4);cx.lineTo(x+3,ay);cx.closePath();cx.fill()}}
+  cx.fillStyle='#4338ca';cx.font='bold 7px system-ui';cx.textAlign='center';cx.fillText('Nuclear Pore',x,my+sh+7);
+}
+
+function drawCaMKII(){
+  const x=camk.x,y=camk.y,active=camk.act>30;
+  if(active){cx.shadowBlur=15;cx.shadowColor='#fbbf24'}
+  cx.fillStyle=active?'#fbbf24':'#e5e7eb';cx.strokeStyle=active?'#d97706':'#9ca3af';cx.lineWidth=1.5;
+  for(let i=0;i<8;i++){const a=(i/8)*Math.PI*2+frame*.01,px=x+Math.cos(a)*28,py=y+Math.sin(a)*12;
+    cx.beginPath();cx.arc(px,py,7,0,Math.PI*2);cx.fill();cx.stroke();
+    if(active){cx.fillStyle='#fff';cx.font='bold 6px system-ui';cx.textAlign='center';cx.textBaseline='middle';cx.fillText('P',px,py+.5);cx.fillStyle='#fbbf24'}}
+  cx.shadowBlur=0;
+  cx.fillStyle=active?'#92400e':'#6b7280';cx.font='bold 10px system-ui';cx.textAlign='center';cx.fillText('CaMKII',x,y+26);
+}
+
+function drawMicrotubules(){
+  cx.strokeStyle='#d1d5db';cx.lineWidth=2;cx.setLineDash([6,6]);
+  cx.beginPath();cx.moveTo(415,215);cx.lineTo(415,LY.clB-8);cx.stroke();
+  cx.beginPath();cx.moveTo(445,215);cx.lineTo(445,LY.clB-8);cx.stroke();
+  cx.setLineDash([]);
+  cx.fillStyle='#d1d5db';cx.font='8px system-ui';cx.textAlign='center';cx.fillText('Microtubules',430,LY.clB-2);
+}
+
+function drawRibosomes(){
+  ribosomes.forEach(r=>{
+    cx.fillStyle='#86efac';cx.strokeStyle='#059669';cx.lineWidth=1.5;
+    cx.beginPath();cx.arc(r.x,r.y,14,0,Math.PI,true);cx.fill();cx.stroke();
+    cx.beginPath();cx.arc(r.x,r.y+2,9,0,Math.PI*2);cx.fill();cx.stroke();
+    cx.fillStyle='#065f46';cx.font='bold 8px system-ui';cx.textAlign='center';cx.fillText('Ribosome',r.x,r.y+22);
+  });
+}
+
+function drawDNA(){
+  const y=DNA_Y,amp=12;cx.save();
+  if(crebAct>10){cx.shadowBlur=20*(crebAct/100);cx.shadowColor='#8b5cf6'}
+  cx.lineCap='round';
+  // Strand 1
+  cx.strokeStyle='#475569';cx.lineWidth=3;cx.beginPath();
+  for(let i=LY.L+80;i<LY.R-80;i+=3){const dy=Math.sin((i+frame*.8)*.04)*amp;i===LY.L+80?cx.moveTo(i,y+dy):cx.lineTo(i,y+dy)}cx.stroke();
+  // Strand 2
+  cx.strokeStyle='#94a3b8';cx.beginPath();
+  for(let i=LY.L+80;i<LY.R-80;i+=3){const dy=Math.sin((i+frame*.8)*.04+Math.PI)*amp;i===LY.L+80?cx.moveTo(i,y+dy):cx.lineTo(i,y+dy)}cx.stroke();
+  // Rungs
+  cx.strokeStyle='#cbd5e1';cx.lineWidth=1;
+  for(let i=LY.L+80;i<LY.R-80;i+=22){const d1=Math.sin((i+frame*.8)*.04)*amp,d2=Math.sin((i+frame*.8)*.04+Math.PI)*amp;cx.beginPath();cx.moveTo(i,y+d1);cx.lineTo(i,y+d2);cx.stroke()}
+  cx.restore();
+  // CREB
+  if(crebAct>15){cx.fillStyle='#7c3aed';rr(430-20,y-28,40,16,6);cx.fill();cx.fillStyle='#fff';cx.font='bold 8px system-ui';cx.textAlign='center';cx.fillText('pCREB',430,y-17)}
+  cx.fillStyle='#94a3b8';cx.font='9px system-ui';cx.textAlign='center';cx.fillText('BDNF Gene (Exon IV)',430,y+28);
+}
+
+function drawAttrLines(){
+  parts.forEach(p=>{if(!p.alive||p.passing)return;
+    if(p.type==='ca'&&p.reg==='cyto'){const d=Math.sqrt(Math.pow(camk.x-p.x,2)+Math.pow(camk.y-p.y,2));if(d<80){cx.strokeStyle='rgba(220,38,38,0.15)';cx.lineWidth=1;cx.setLineDash([2,3]);cx.beginPath();cx.moveTo(p.x,p.y);cx.lineTo(camk.x,camk.y);cx.stroke();cx.setLineDash([])}}
+    if(p.type==='mrna'&&p.reg==='cyto'){ribosomes.forEach(r=>{const d=Math.sqrt(Math.pow(r.x-p.x,2)+Math.pow(r.y-p.y,2));if(d<80){cx.strokeStyle='rgba(139,92,246,0.15)';cx.lineWidth=1;cx.setLineDash([2,3]);cx.beginPath();cx.moveTo(p.x,p.y);cx.lineTo(r.x,r.y);cx.stroke();cx.setLineDash([])}})}
+  });
+}
+
+function drawCrebGauge(){
+  const gx=LY.R+18,gy=LY.mpT-30,gh=MH+80,gw=12;
+  cx.fillStyle='#e2e8f0';rr(gx,gy,gw,gh,4);cx.fill();
+  const fr=crebAct/100,fh=gh*fr;
+  cx.fillStyle=fr>.3?'#8b5cf6':'#a5b4fc';rr(gx,gy+gh-fh,gw,fh,4);cx.fill();
+  cx.strokeStyle='#dc2626';cx.lineWidth=1.5;cx.beginPath();cx.moveTo(gx-3,gy+gh-gh*.3);cx.lineTo(gx+gw+3,gy+gh-gh*.3);cx.stroke();
+  cx.fillStyle='#64748b';cx.font='bold 7px system-ui';cx.textAlign='center';cx.fillText('CREB',gx+gw/2,gy-5);
+  cx.fillStyle='#dc2626';cx.font='6px system-ui';cx.fillText('30%',gx+gw+16,gy+gh-gh*.3+3);
+}
+
+// ═══ MAIN DRAW ═══
+function draw(){
+  cx.clearRect(0,0,W,H);
+  // Base
+  cx.fillStyle='#f1f5f9';cx.fillRect(LY.L,LY.extT,LY.R-LY.L,LY.nucB-LY.extT);
+
+  // Extracellular (CYAN)
+  const extG=cx.createLinearGradient(430,LY.extT,430,LY.extB);extG.addColorStop(0,'#cffafe');extG.addColorStop(1,'#a5f3fc');
+  cx.fillStyle=extG;cx.fillRect(LY.L,LY.extT,LY.R-LY.L,LY.extB-LY.extT);
+  cx.strokeStyle='#22d3ee';cx.lineWidth=2;cx.beginPath();cx.moveTo(LY.L,LY.extT);cx.lineTo(LY.L,LY.extB);cx.lineTo(LY.R,LY.extB);cx.lineTo(LY.R,LY.extT);cx.stroke();
+  cx.fillStyle='#0891b2';cx.font='bold 12px system-ui';cx.textAlign='left';cx.fillText('Extracellular Space (post-NMDA opening)',LY.L+10,LY.extT+20);
+
+  // Cytoplasm (LIGHT)
+  cx.fillStyle='#f8fafc';cx.fillRect(LY.L,LY.clT,LY.R-LY.L,LY.clB-LY.clT);
+  if(camk.act>20){const I=Math.min(.2,camk.act*.002);const g=cx.createRadialGradient(camk.x,camk.y,10,camk.x,camk.y,120);g.addColorStop(0,`rgba(251,191,36,${I})`);g.addColorStop(1,'rgba(251,191,36,0)');cx.fillStyle=g;cx.fillRect(LY.L,LY.clT,LY.R-LY.L,LY.clB-LY.clT)}
+  cx.fillStyle='#475569';cx.font='bold 12px system-ui';cx.textAlign='left';cx.fillText('Dendritic Cytoplasm',LY.L+10,LY.clT+18);
+
+  // Nucleus (PURPLE)
+  const nucG=cx.createLinearGradient(430,LY.nucT,430,LY.nucB);nucG.addColorStop(0,'#e0e7ff');nucG.addColorStop(1,'#c7d2fe');
+  cx.fillStyle=nucG;cx.fillRect(LY.L,LY.nucT,LY.R-LY.L,LY.nucB-LY.nucT);
+  if(crebAct>10){const I=Math.min(.22,crebAct*.003);const g=cx.createRadialGradient(430,DNA_Y,10,430,DNA_Y,200);g.addColorStop(0,`rgba(139,92,246,${I})`);g.addColorStop(1,'rgba(139,92,246,0)');cx.fillStyle=g;cx.fillRect(LY.L,LY.nucT,LY.R-LY.L,LY.nucB-LY.nucT)}
+  cx.strokeStyle='#818cf8';cx.lineWidth=2;cx.beginPath();cx.moveTo(LY.L,LY.nucB);cx.lineTo(LY.L,LY.nucT);cx.lineTo(LY.R,LY.nucT);cx.lineTo(LY.R,LY.nucB);cx.stroke();
+  cx.fillStyle='#4338ca';cx.font='bold 12px system-ui';cx.textAlign='left';cx.fillText('Nucleus',LY.L+10,LY.nucB-10);
+
+  drawBilayer(LY.extB-3,'#0ea5e9',x=>caChannels.some(ch=>Math.abs(x-ch.x)<18));
+  drawBilayer(LY.mpT-3,'#6366f1',x=>nucPores.some(np=>Math.abs(x-np.x)<22));
+
+  caChannels.forEach(drawCaCh);
+  nucPores.forEach(drawNucPore);
+  drawCaMKII();
+  drawMicrotubules();
+  drawRibosomes();
+  drawDNA();
+  drawAttrLines();
+  parts.forEach(drawP);
+  drawCrebGauge();
+}
+
+function updUI(){
+  document.getElementById('crebR').textContent=Math.round(crebAct)+'%';
+  document.getElementById('crebBar').style.width=Math.min(100,crebAct)+'%';
+  document.getElementById('camkR').textContent=Math.round(camk.act)+'%';
+  document.getElementById('camkBar').style.width=Math.min(100,camk.act)+'%';
+  document.getElementById('caV').textContent=parts.filter(p=>p.type==='ca'&&p.reg==='cyto'&&p.alive).length;
+  document.getElementById('bdnfV').textContent=bdnfTotal;
+  document.getElementById('stimV').textContent=stimN;
+  document.getElementById('logB').textContent=logTxt;
+}
+
+function loop(){
+  frame++;maintain();updFlow();updCascade();collide();parts.forEach(updPart);
+  parts=parts.filter(p=>p.alive&&p.alpha>0);
+  draw();updUI();requestAnimationFrame(loop);
+}
+maintain();loop();
+</script>
+</body>
+</html>
