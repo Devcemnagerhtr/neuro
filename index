@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NeuroSim — Brain Simulations</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #fff;
+    color: #222;
+    line-height: 1.4;
+  }
+
+  /* Header */
+  header {
+    border-bottom: 1px solid #ddd;
+    padding: 18px 30px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .logo {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: #1a1a1a;
+    letter-spacing: -0.5px;
+  }
+  .logo span { color: #6366f1; }
+  header nav { display: flex; gap: 24px; margin-left: 40px; }
+  header nav a {
+    text-decoration: none;
+    color: #888;
+    font-size: 0.95rem;
+    font-weight: 500;
+    padding-bottom: 4px;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+  }
+  header nav a:hover, header nav a.active {
+    color: #222;
+    border-bottom-color: #6366f1;
+  }
+
+  /* Layout */
+  .page {
+    display: flex;
+    max-width: 1300px;
+    margin: 0 auto;
+    padding: 24px 30px;
+    gap: 36px;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 220px;
+    flex-shrink: 0;
+  }
+  .sidebar h3 {
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #222;
+    margin-bottom: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+  }
+  .sidebar h3 .toggle {
+    font-size: 1.1rem;
+    color: #999;
+    font-weight: 400;
+  }
+  .scale-group {
+    margin-bottom: 22px;
+  }
+  .scale-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 0;
+    cursor: pointer;
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: #333;
+    transition: color 0.15s;
+  }
+  .scale-label:hover { color: #000; }
+  .scale-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #6366f1;
+    cursor: pointer;
+  }
+  .scale-label .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .sub-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0 4px 28px;
+    font-size: 0.88rem;
+    color: #555;
+    cursor: pointer;
+  }
+  .sub-item:hover { color: #222; }
+  .sub-item input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    accent-color: #6366f1;
+    cursor: pointer;
+  }
+
+  /* Main */
+  .main {
+    flex: 1;
+    min-width: 0;
+  }
+  .toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .result-count {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #111;
+  }
+  .toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .sort-select {
+    padding: 6px 12px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    background: #fff;
+    cursor: pointer;
+    color: #333;
+  }
+  .view-btn {
+    background: none;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 5px 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    color: #888;
+    transition: all 0.15s;
+  }
+  .view-btn:hover, .view-btn.active { color: #222; border-color: #999; }
+  .active-filters {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+  .filter-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border: 1.5px solid #6366f1;
+    border-radius: 5px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #6366f1;
+    background: #f5f3ff;
+  }
+  .filter-tag .x {
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: #6366f1;
+    margin-left: 2px;
+  }
+  .filter-tag .x:hover { color: #4338ca; }
+
+  /* Grid */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+  }
+  .card {
+    border: 1px solid #e0e0e0;
+    border-radius: 10px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: box-shadow 0.2s, transform 0.15s;
+    background: #fff;
+  }
+  .card:hover {
+    box-shadow: 0 4px 18px rgba(0,0,0,0.1);
+    transform: translateY(-2px);
+  }
+  .card-thumb {
+    width: 100%;
+    aspect-ratio: 16/10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .card-thumb .icon {
+    font-size: 2.8rem;
+    opacity: 0.7;
+  }
+  .card-scale-tag {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #fff;
+  }
+  .card-body {
+    padding: 12px 14px 14px;
+  }
+  .card-body h3 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin-bottom: 2px;
+  }
+  .card-body .card-scale-text {
+    font-size: 0.75rem;
+    color: #999;
+  }
+
+  /* Scale colors */
+  .bg-macro { background: linear-gradient(135deg, #e0f7fa 0%, #b2ebf2 100%); }
+  .bg-meso { background: linear-gradient(135deg, #e8eaf6 0%, #c5cae9 100%); }
+  .bg-cell { background: linear-gradient(135deg, #ede7f6 0%, #d1c4e9 100%); }
+  .bg-sub { background: linear-gradient(135deg, #fce4ec 0%, #f8bbd0 100%); }
+  .bg-nano { background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%); }
+  .bg-atom { background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); }
+
+  .tag-macro { background: #0891b2; }
+  .tag-meso { background: #6366f1; }
+  .tag-cell { background: #7c3aed; }
+  .tag-sub { background: #db2777; }
+  .tag-nano { background: #ea580c; }
+  .tag-atom { background: #16a34a; }
+
+  .dot-macro { background: #22d3ee; }
+  .dot-meso { background: #818cf8; }
+  .dot-cell { background: #a78bfa; }
+  .dot-sub { background: #f472b6; }
+  .dot-nano { background: #fb923c; }
+  .dot-atom { background: #34d399; }
+
+  /* List view */
+  .grid.list-view {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .grid.list-view .card {
+    display: flex;
+    flex-direction: row;
+    border-radius: 8px;
+  }
+  .grid.list-view .card-thumb {
+    width: 100px;
+    aspect-ratio: 1;
+    flex-shrink: 0;
+    border-radius: 8px 0 0 8px;
+  }
+  .grid.list-view .card-thumb .icon { font-size: 1.6rem; }
+  .grid.list-view .card-body {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 10px 16px;
+  }
+
+  @media (max-width: 800px) {
+    .page { flex-direction: column; padding: 16px; }
+    .sidebar { width: 100%; }
+    .grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Neuro<span>Sim</span></div>
+  <nav>
+    <a href="#" class="active">Browse</a>
+    <a href="#">About</a>
+  </nav>
+</header>
+
+<div class="page">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <h3>SCALE <span class="toggle">+</span></h3>
+
+    <div class="scale-group">
+      <label class="scale-label"><input type="checkbox" data-scale="macro" onchange="filterChanged()"><div class="dot dot-macro"></div>Macroscale</label>
+      <label class="scale-label"><input type="checkbox" data-scale="meso" onchange="filterChanged()"><div class="dot dot-meso"></div>Mesoscopic</label>
+      <label class="scale-label"><input type="checkbox" data-scale="cell" onchange="filterChanged()"><div class="dot dot-cell"></div>Cellular</label>
+      <label class="scale-label"><input type="checkbox" data-scale="sub" onchange="filterChanged()"><div class="dot dot-sub"></div>Subcellular</label>
+      <label class="scale-label"><input type="checkbox" data-scale="nano" onchange="filterChanged()"><div class="dot dot-nano"></div>Nanoscale</label>
+      <label class="scale-label"><input type="checkbox" data-scale="atom" onchange="filterChanged()"><div class="dot dot-atom"></div>Atomistic</label>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="toolbar">
+      <div class="result-count" id="resultCount">46 simulations</div>
+      <div class="toolbar-right">
+        <select class="sort-select" id="sortSelect" onchange="renderCards()">
+          <option value="scale">Sort by: Scale</option>
+          <option value="az">Sort by: A–Z</option>
+          <option value="za">Sort by: Z–A</option>
+        </select>
+        <button class="view-btn active" id="gridBtn" onclick="setView('grid')">▦</button>
+        <button class="view-btn" id="listBtn" onclick="setView('list')">☰</button>
+      </div>
+    </div>
+    <div class="active-filters" id="activeFilters"></div>
+    <div class="grid" id="grid"></div>
+  </main>
+</div>
+
+<script>
+const sims = [
+  // Macroscale
+  {name:'3D Brain Atlas', scale:'macro', icon:'🧠'},
+  {name:'Coronal Section Explorer', scale:'macro', icon:'🔍'},
+  {name:'Cerebral Blood Flow', scale:'macro', icon:'🩸'},
+  {name:'CSF Circulation', scale:'macro', icon:'💧'},
+  {name:'White Matter Tractography', scale:'macro', icon:'🔗'},
+  {name:'EEG Source Localization', scale:'macro', icon:'📡'},
+  {name:'Blood-Brain Barrier Pharmacokinetics', scale:'macro', icon:'💊'},
+
+  // Mesoscopic
+  {name:'Cortical Column E/I Balance', scale:'meso', icon:'⚖️'},
+  {name:'Hippocampal Trisynaptic Circuit', scale:'meso', icon:'🔄'},
+  {name:'Basal Ganglia Pathways', scale:'meso', icon:'🛤️'},
+  {name:'Thalamocortical Oscillations', scale:'meso', icon:'〰️'},
+  {name:'Cerebrovascular Microvasculature', scale:'meso', icon:'🌿'},
+  {name:'Cortical Spreading Depression', scale:'meso', icon:'🌊'},
+  {name:'Neural Field Model (Wilson-Cowan)', scale:'meso', icon:'📊'},
+
+  // Cellular
+  {name:'LTP & LTD at the Synapse', scale:'cell', icon:'⚡'},
+  {name:'Hodgkin-Huxley Action Potential', scale:'cell', icon:'🔋'},
+  {name:'Spike-Timing-Dependent Plasticity', scale:'cell', icon:'⏱️'},
+  {name:'Astrocyte Calcium Waves', scale:'cell', icon:'🌟'},
+  {name:'Microglial Surveillance & Pruning', scale:'cell', icon:'✂️'},
+  {name:'Myelination Dynamics', scale:'cell', icon:'🧵'},
+  {name:'Dendritic Computation', scale:'cell', icon:'🌳'},
+  {name:'Neuromuscular Junction', scale:'cell', icon:'💪'},
+
+  // Subcellular
+  {name:'BDNF Production Pathway', scale:'sub', icon:'🧬'},
+  {name:'BDNF–TrkB Signaling & Spine Growth', scale:'sub', icon:'🌱'},
+  {name:'CaMKII Autophosphorylation Switch', scale:'sub', icon:'🔀'},
+  {name:'AMPA Receptor Trafficking', scale:'sub', icon:'🚚'},
+  {name:'MAPK/ERK Cascade', scale:'sub', icon:'⛓️'},
+  {name:'Synaptic Vesicle Cycle', scale:'sub', icon:'📦'},
+  {name:'Mitochondrial Ca²⁺ Buffering', scale:'sub', icon:'🔥'},
+  {name:'mTOR & Local Protein Synthesis', scale:'sub', icon:'🏭'},
+  {name:'Epigenetic Marking', scale:'sub', icon:'🏷️'},
+
+  // Nanoscale
+  {name:'NMDA Receptor Gating', scale:'nano', icon:'🚪'},
+  {name:'Voltage-Gated Na⁺ Channel', scale:'nano', icon:'⚡'},
+  {name:'Kinesin Axonal Transport', scale:'nano', icon:'🚂'},
+  {name:'Actin Polymerization in Spines', scale:'nano', icon:'🧱'},
+  {name:'Tau Protein Misfolding', scale:'nano', icon:'🔻'},
+  {name:'Amyloid-β Aggregation', scale:'nano', icon:'🧩'},
+  {name:'Synaptotagmin Ca²⁺ Sensing', scale:'nano', icon:'🎯'},
+  {name:'SNARE Complex Assembly', scale:'nano', icon:'🔧'},
+
+  // Atomistic
+  {name:'Glutamate–NMDA Binding Pocket', scale:'atom', icon:'⚛️'},
+  {name:'Dopamine–D2 Receptor Docking', scale:'atom', icon:'🔬'},
+  {name:'Serotonin Reuptake Transporter', scale:'atom', icon:'🧪'},
+  {name:'Acetylcholinesterase Active Site', scale:'atom', icon:'✂️'},
+  {name:'Lipid Bilayer Dynamics', scale:'atom', icon:'🫧'},
+  {name:'K⁺ Channel Selectivity Filter', scale:'atom', icon:'🎚️'},
+  {name:'Water Permeation Through Aquaporin', scale:'atom', icon:'💧'},
+  {name:'GABA_A Receptor Allosteric Sites', scale:'atom', icon:'💉'},
+];
+
+const scaleOrder = {macro:0, meso:1, cell:2, sub:3, nano:4, atom:5};
+const scaleNames = {macro:'Macroscale', meso:'Mesoscopic', cell:'Cellular', sub:'Subcellular', nano:'Nanoscale', atom:'Atomistic'};
+
+let viewMode = 'grid';
+let activeScales = new Set();
+
+function getFiltered() {
+  let list = sims;
+  if (activeScales.size > 0) list = list.filter(s => activeScales.has(s.scale));
+  const sort = document.getElementById('sortSelect').value;
+  if (sort === 'scale') list.sort((a,b) => scaleOrder[a.scale] - scaleOrder[b.scale]);
+  else if (sort === 'az') list.sort((a,b) => a.name.localeCompare(b.name));
+  else if (sort === 'za') list.sort((a,b) => b.name.localeCompare(a.name));
+  return list;
+}
+
+function filterChanged() {
+  activeScales.clear();
+  document.querySelectorAll('.scale-label input:checked').forEach(cb => activeScales.add(cb.dataset.scale));
+  renderFilters();
+  renderCards();
+}
+
+function removeFilter(scale) {
+  activeScales.delete(scale);
+  document.querySelector(`.scale-label input[data-scale="${scale}"]`).checked = false;
+  renderFilters();
+  renderCards();
+}
+
+function renderFilters() {
+  const el = document.getElementById('activeFilters');
+  el.innerHTML = '';
+  activeScales.forEach(s => {
+    el.innerHTML += `<div class="filter-tag">${scaleNames[s]} <span class="x" onclick="removeFilter('${s}')">✕</span></div>`;
+  });
+}
+
+function renderCards() {
+  const list = getFiltered();
+  document.getElementById('resultCount').textContent = list.length + ' simulation' + (list.length !== 1 ? 's' : '');
+  const grid = document.getElementById('grid');
+  grid.className = viewMode === 'list' ? 'grid list-view' : 'grid';
+  grid.innerHTML = list.map(s => `
+    <div class="card" onclick="console.log('Open: ${s.name}')">
+      <div class="card-thumb bg-${s.scale}">
+        <div class="icon">${s.icon}</div>
+        <div class="card-scale-tag tag-${s.scale}">${scaleNames[s.scale]}</div>
+      </div>
+      <div class="card-body">
+        <h3>${s.name}</h3>
+      </div>
+    </div>
+  `).join('');
+}
+
+function setView(mode) {
+  viewMode = mode;
+  document.getElementById('gridBtn').classList.toggle('active', mode === 'grid');
+  document.getElementById('listBtn').classList.toggle('active', mode === 'list');
+  renderCards();
+}
+
+renderCards();
+</script>
+</body>
+</html>
