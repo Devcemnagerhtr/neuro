@@ -11,7 +11,7 @@
   .sub{color:#64748b;font-size:.8rem;margin-bottom:8px}
   .lay{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
   .cw{background:#fff;border-radius:12px;box-shadow:0 2px 14px rgba(0,0,0,.1);padding:6px}
-  canvas{display:block;border-radius:8px;cursor:crosshair}
+  canvas{display:block;border-radius:8px}
   .pn{background:#fff;border-radius:12px;box-shadow:0 2px 14px rgba(0,0,0,.1);padding:14px 16px;width:260px;display:flex;flex-direction:column;gap:9px;font-size:.84rem}
   .pn h2{font-size:.68rem;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;border-bottom:1px solid #e2e8f0;padding-bottom:4px;margin:4px 0 0 0}
   .param-row{margin-bottom:2px}
@@ -19,158 +19,521 @@
   .param-val{color:#0891b2;font-family:monospace;font-weight:700}
   input[type=range]{width:100%;height:4px;background:#e2e8f0;border-radius:2px;-webkit-appearance:none}
   input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;background:#0891b2;border-radius:50%;cursor:pointer}
-  .bt{padding:9px;border:none;border-radius:7px;font-weight:700;font-size:.84rem;cursor:pointer;width:100%;transition:transform .1s}
+  .bt{padding:9px;border:none;border-radius:7px;font-weight:700;font-size:.82rem;cursor:pointer;width:100%;transition:transform .1s}
   .bt:hover{transform:translateY(-1px);filter:brightness(1.06)}
-  .bg{background:#0891b2;color:#fff}.ba{background:#7c3aed;color:#fff}.bb{background:#dc2626;color:#fff}.bc{background:#d97706;color:#fff}.bd{background:#16a34a;color:#fff}.bs{background:#e11d48;color:#fff}.br{background:#e2e8f0;color:#64748b}
+  .bg{background:#0891b2;color:#fff}.ba{background:#7c3aed;color:#fff}.bb{background:#d97706;color:#fff}.bc{background:#dc2626;color:#fff}.bd{background:#16a34a;color:#fff}.bs{background:#e11d48;color:#fff}.br{background:#e2e8f0;color:#64748b}
   .ro{background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:6px 9px;display:flex;justify-content:space-between;align-items:center}
   .ro .lb{font-size:.65rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px}
   .ro .vl{font-size:1rem;font-weight:700;font-family:'Courier New',monospace}
   .lg{font-size:.72rem;color:#334155;min-height:38px;background:#fefce8;border:1px solid #fef08a;border-radius:7px;padding:7px;line-height:1.35;font-weight:500}
   .prog-wrap{background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:6px 9px}
   .prog-wrap .lb{font-size:.65rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px}
-  .prog-outer{height:10px;background:#e2e8f0;border-radius:6px;overflow:hidden;position:relative}
+  .prog-outer{height:10px;background:#e2e8f0;border-radius:6px;overflow:hidden}
   .prog-fill{height:100%;border-radius:6px;transition:width .2s}
   .prog-label{display:flex;justify-content:space-between;font-size:.62rem;color:#94a3b8;margin-top:2px}
+  .inset-wrap{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px;text-align:center}
+  .inset-wrap canvas{margin:0 auto}
 </style>
 </head>
 <body>
 <h1>Carrier-Mediated Transport Across the BBB</h1>
-<p class="sub">GLUT1 (glucose) · LAT1 (amino acids) · MCT1 (lactate) — conformational shuttle, no vesicles</p>
+<p class="sub">GLUT1 · LAT1 · MCT1 — conformational alternating-access shuttle (no vesicles)</p>
 <div class="lay">
 <div class="cw"><canvas id="c"></canvas></div>
 <div class="pn">
-  <h2>Release Substrates</h2>
-  <div style="display:flex;gap:6px">
-    <button class="bt bc" onclick="releaseGlc()">Glucose</button>
-    <button class="bt bb" onclick="releaseAA()">Amino A.</button>
-    <button class="bt bd" onclick="releaseLac()">Lactate</button>
+  <h2>Add Substrates</h2>
+  <div style="display:flex;gap:5px">
+    <button class="bt bb" onclick="addSub('glc',8)">Glucose</button>
+    <button class="bt bc" onclick="addSub('aa',6)">Amino Acid</button>
+    <button class="bt bd" onclick="addSub('lac',6)">Lactate</button>
   </div>
-  <div style="display:flex;gap:6px">
+  <div style="display:flex;gap:5px">
     <button class="bt ba" id="abtn" onclick="togAuto()">▶ Auto</button>
     <button class="bt br" onclick="fullReset()">Reset</button>
   </div>
-  <h2>Blood Concentrations</h2>
+  <h2>Ambient Concentrations</h2>
   <div class="param-row">
-    <div class="param-label">Glucose <span class="param-val" id="valGlc">8</span></div>
-    <input type="range" id="slGlc" min="0" max="30" value="8" oninput="updParams()">
+    <div class="param-label">Glucose <span class="param-val" id="vGlc">5</span></div>
+    <input type="range" id="sGlc" min="0" max="25" value="5" oninput="updP()">
   </div>
   <div class="param-row">
-    <div class="param-label">Amino Acids <span class="param-val" id="valAA">4</span></div>
-    <input type="range" id="slAA" min="0" max="20" value="4" oninput="updParams()">
+    <div class="param-label">Amino Acids <span class="param-val" id="vAA">3</span></div>
+    <input type="range" id="sAA" min="0" max="20" value="3" oninput="updP()">
   </div>
   <div class="param-row">
-    <div class="param-label">Lactate <span class="param-val" id="valLac">3</span></div>
-    <input type="range" id="slLac" min="0" max="20" value="3" oninput="updParams()">
+    <div class="param-label">Lactate <span class="param-val" id="vLac">2</span></div>
+    <input type="range" id="sLac" min="0" max="20" value="2" oninput="updP()">
   </div>
   <h2>Readouts</h2>
   <div class="prog-wrap">
-    <div class="lb">Transporter Occupancy</div>
-    <div class="prog-outer"><div class="prog-fill" id="occBar" style="width:0%;background:#d97706"></div></div>
-    <div class="prog-label"><span id="occR">0 / 8</span><span>GLUT1 · LAT1 · MCT1</span></div>
+    <div class="lb">Transporter Activity</div>
+    <div class="prog-outer"><div class="prog-fill" id="actBar" style="width:0%;background:#d97706"></div></div>
+    <div class="prog-label"><span id="actR">0%</span><span>Cycling rate</span></div>
   </div>
-  <div class="ro"><div class="lb">Glucose Delivered</div><div class="vl" id="glcV" style="color:#d97706">0</div></div>
-  <div class="ro"><div class="lb">Amino Acids Delivered</div><div class="vl" id="aaV" style="color:#dc2626">0</div></div>
-  <div class="ro"><div class="lb">Lactate Delivered</div><div class="vl" id="lacV" style="color:#16a34a">0</div></div>
-  <div class="ro"><div class="lb">Total Flux</div><div class="vl" id="totV" style="color:#475569">0</div></div>
+  <div class="ro"><div class="lb">Glucose → Brain</div><div class="vl" id="dGlc" style="color:#d97706">0</div></div>
+  <div class="ro"><div class="lb">Amino Acids → Brain</div><div class="vl" id="dAA" style="color:#dc2626">0</div></div>
+  <div class="ro"><div class="lb">Lactate → Brain</div><div class="vl" id="dLac" style="color:#16a34a">0</div></div>
+  <h2>Alternating Access Model</h2>
+  <div class="inset-wrap">
+    <canvas id="insetC"></canvas>
+  </div>
   <h2>Status</h2>
-  <div class="lg" id="logB">Release substrates into the blood.</div>
+  <div class="lg" id="logB">Add substrates to the bloodstream and watch carriers cycle.</div>
 </div>
 </div>
 <script>
-const cv=document.getElementById('c'),cx=cv.getContext('2d');
-const W=860,H=660,D=window.devicePixelRatio||1;
-cv.width=W*D;cv.height=H*D;cv.style.width=W+'px';cv.style.height=H+'px';
-cx.setTransform(D,0,0,D,0,0);
+// ═══ MAIN CANVAS ═══
+var cv = document.getElementById('c');
+var cx = cv.getContext('2d');
+var W = 860, H = 700, DP = window.devicePixelRatio || 1;
+cv.width = W * DP; cv.height = H * DP;
+cv.style.width = W + 'px'; cv.style.height = H + 'px';
+cx.setTransform(DP, 0, 0, DP, 0, 0);
 
-const LY={bloodT:5,bloodB:145,cytoT:154,cytoB:388,mpT:388,mpB:420,brainT:424,brainB:630,L:50,R:810};
-const MH=LY.mpB-LY.mpT;
-const BSY=LY.bloodB-3-14;
+// ═══ INSET CANVAS ═══
+var icv = document.getElementById('insetC');
+var icx = icv.getContext('2d');
+var IW = 228, IH = 140;
+icv.width = IW * DP; icv.height = IH * DP;
+icv.style.width = IW + 'px'; icv.style.height = IH + 'px';
+icx.setTransform(DP, 0, 0, DP, 0, 0);
 
-function rr(x,y,w,h,r){cx.beginPath();cx.moveTo(x+r,y);cx.lineTo(x+w-r,y);cx.quadraticCurveTo(x+w,y,x+w,y+r);cx.lineTo(x+w,y+h-r);cx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);cx.lineTo(x+r,y+h);cx.quadraticCurveTo(x,y+h,x,y+h-r);cx.lineTo(x,y+r);cx.quadraticCurveTo(x,y,x+r,y);cx.closePath()}
+// Layout
+var BLOOD_T = 5, BLOOD_B = 220;
+var MEMB_T = 228, MEMB_B = 472;
+var BRAIN_T = 480, BRAIN_B = 690;
+var L = 50, R = 810;
+var CAPTURE_Y = BLOOD_B - 15;
 
-// Particle types
-const PT={
-  glc:{r:6,m:1.0,c1:'#fef3c7',c2:'#d97706',brd:'#b45309',gw:'rgba(217,119,6,0.18)',lb:'Glc',lc:'#78350f',fs:6},
-  aa:{r:5.5,m:.8,c1:'#fee2e2',c2:'#dc2626',brd:'#b91c1c',gw:'rgba(220,38,38,0.16)',lb:'AA',lc:'#fff',fs:6},
-  lac:{r:5,m:.7,c1:'#d1fae5',c2:'#16a34a',brd:'#15803d',gw:'rgba(22,163,74,0.18)',lb:'Lac',lc:'#fff',fs:5.5},
-  // Brain-side versions (same look)
-  bglc:{r:6,m:1.0,c1:'#fef3c7',c2:'#d97706',brd:'#b45309',gw:'rgba(217,119,6,0.18)',lb:'Glc',lc:'#78350f',fs:6},
-  baa:{r:5.5,m:.8,c1:'#fee2e2',c2:'#dc2626',brd:'#b91c1c',gw:'rgba(220,38,38,0.16)',lb:'AA',lc:'#fff',fs:6},
-  blac:{r:5,m:.7,c1:'#d1fae5',c2:'#16a34a',brd:'#15803d',gw:'rgba(22,163,74,0.18)',lb:'Lac',lc:'#fff',fs:5.5}
+var frame = 0, autoOn = false, autoIv = null;
+var logTxt = 'Add substrates to the bloodstream and watch carriers cycle.';
+var tGlc = 5, tAA = 3, tLac = 2;
+var dGlc = 0, dAA = 0, dLac = 0;
+
+// Substrate visuals
+var SUBDEF = {
+  glc: { r:7, c1:'#fef3c7', c2:'#d97706', brd:'#92400e', gw:'rgba(217,119,6,.2)', lb:'Glc', lc:'#78350f' },
+  aa:  { r:6, c1:'#fee2e2', c2:'#dc2626', brd:'#991b1b', gw:'rgba(220,38,38,.18)', lb:'AA',  lc:'#fff' },
+  lac: { r:5.5, c1:'#dcfce7', c2:'#16a34a', brd:'#166534', gw:'rgba(22,163,74,.2)', lb:'Lac', lc:'#fff' }
 };
 
-let parts=[],frame=0,autoOn=false,autoIv=null;
-let logTxt='Release substrates into the blood.';
-let targetGlc=8,targetAA=4,targetLac=3;
-let deliveredGlc=0,deliveredAA=0,deliveredLac=0;
+var subs = [];
 
-// Carriers
-// state: 'outward' (facing blood), 'bound', 'transitioning', 'inward' (facing brain), 'releasing', 'resetting'
-let carriers=[
-  {x:100, type:'GLUT1',accepts:'glc',state:'outward',lig:null,timer:0,conf:0},
-  {x:220, type:'GLUT1',accepts:'glc',state:'outward',lig:null,timer:0,conf:0},
-  {x:340, type:'LAT1', accepts:'aa', state:'outward',lig:null,timer:0,conf:0},
-  {x:430, type:'GLUT1',accepts:'glc',state:'outward',lig:null,timer:0,conf:0},
-  {x:540, type:'MCT1', accepts:'lac',state:'outward',lig:null,timer:0,conf:0},
-  {x:630, type:'LAT1', accepts:'aa', state:'outward',lig:null,timer:0,conf:0},
-  {x:720, type:'GLUT1',accepts:'glc',state:'outward',lig:null,timer:0,conf:0},
-  {x:790, type:'MCT1', accepts:'lac',state:'outward',lig:null,timer:0,conf:0}
+// Carrier types
+var CTYPES = [
+  { name:'GLUT1', accepts:'glc', color:'#f59e0b', dark:'#92400e', light:'#fef3c7' },
+  { name:'LAT1',  accepts:'aa',  color:'#ef4444', dark:'#991b1b', light:'#fee2e2' },
+  { name:'MCT1',  accepts:'lac', color:'#22c55e', dark:'#166534', light:'#dcfce7' }
 ];
 
-function updParams(){
-  targetGlc=parseInt(document.getElementById('slGlc').value);document.getElementById('valGlc').textContent=targetGlc;
-  targetAA=parseInt(document.getElementById('slAA').value);document.getElementById('valAA').textContent=targetAA;
-  targetLac=parseInt(document.getElementById('slLac').value);document.getElementById('valLac').textContent=targetLac;
+var carriers = [];
+function initCarriers() {
+  carriers = [
+    { x:105,  ct:0, state:'idle', t:0, cargo:null, conf:0 },
+    { x:215,  ct:1, state:'idle', t:0, cargo:null, conf:0 },
+    { x:330,  ct:0, state:'idle', t:0, cargo:null, conf:0 },
+    { x:430,  ct:2, state:'idle', t:0, cargo:null, conf:0 },
+    { x:540,  ct:0, state:'idle', t:0, cargo:null, conf:0 },
+    { x:650,  ct:1, state:'idle', t:0, cargo:null, conf:0 },
+    { x:760,  ct:2, state:'idle', t:0, cargo:null, conf:0 }
+  ];
+}
+initCarriers();
+
+function updP() {
+  tGlc = +document.getElementById('sGlc').value; document.getElementById('vGlc').textContent = tGlc;
+  tAA  = +document.getElementById('sAA').value;  document.getElementById('vAA').textContent  = tAA;
+  tLac = +document.getElementById('sLac').value; document.getElementById('vLac').textContent = tLac;
 }
 
-function spawn(type,x,y,reg,vx,vy){
-  const t=PT[type];
-  parts.push({type,x,y,vx:vx||(Math.random()-.5)*1.5,vy:vy||(Math.random()-.5)*1.5,r:t.r,m:t.m,reg,alive:true,bound:false,alpha:1,age:0});
-}
-
-function maintain(){
-  ['glc','aa','lac'].forEach((tp,i)=>{
-    const tgt=[targetGlc,targetAA,targetLac][i];
-    const cur=parts.filter(p=>p.type===tp&&p.reg==='blood'&&p.alive&&!p.bound);
-    if(cur.length<tgt&&Math.random()<.06)spawn(tp,LY.L+30+Math.random()*(LY.R-LY.L-60),LY.bloodT+10+Math.random()*(LY.bloodB-LY.bloodT-25),'blood');
-    if(cur.length>tgt){const p=cur[0];if(p)p.alive=false}
+function spawnSub(type, reg, x, y) {
+  subs.push({
+    type: type,
+    x: x !== undefined ? x : (L + 40 + Math.random() * (R - L - 80)),
+    y: y !== undefined ? y : (reg === 'blood' ? BLOOD_T + 20 + Math.random() * (BLOOD_B - BLOOD_T - 50) : BRAIN_T + 20 + Math.random() * (BRAIN_B - BRAIN_T - 40)),
+    vx: (Math.random() - 0.5) * 2.5, vy: (Math.random() - 0.5) * 2.5,
+    reg: reg, alive: true, alpha: 1, age: 0, bound: false, cooldown: 60
   });
 }
 
-// Physics
-function updPart(p){
-  if(!p.alive)return;p.age++;
-  if(p.bound)return;
-  p.vx+=(Math.random()-.5)*.16;p.vy+=(Math.random()-.5)*.16;
-  p.vx*=.996;p.vy*=.996;
-  const sp=Math.sqrt(p.vx*p.vx+p.vy*p.vy);if(sp>3.5){p.vx*=3.5/sp;p.vy*=3.5/sp}
-  p.x+=p.vx;p.y+=p.vy;
-  if(p.reg==='blood'){
-    if(p.x-p.r<LY.L){p.x=LY.L+p.r;p.vx=Math.abs(p.vx)*.75}
-    if(p.x+p.r>LY.R){p.x=LY.R-p.r;p.vx=-Math.abs(p.vx)*.75}
-    if(p.y-p.r<LY.bloodT){p.y=LY.bloodT+p.r;p.vy=Math.abs(p.vy)*.75}
-    if(p.y+p.r>LY.bloodB-7){p.y=LY.bloodB-7-p.r;p.vy=-Math.abs(p.vy)*.75}
-  }else if(p.reg==='brain'){
-    if(p.x-p.r<LY.L){p.x=LY.L+p.r;p.vx=Math.abs(p.vx)*.75}
-    if(p.x+p.r>LY.R){p.x=LY.R-p.r;p.vx=-Math.abs(p.vx)*.75}
-    if(p.y-p.r<LY.brainT+2){p.y=LY.brainT+2+p.r;p.vy=Math.abs(p.vy)*.75}
-    if(p.y+p.r>LY.brainB){p.y=LY.brainB-p.r;p.vy=-Math.abs(p.vy)*.75}
-    if(p.age>1200){p.alpha-=.003;if(p.alpha<=0)p.alive=false}
+function maintain() {
+  ['glc', 'aa', 'lac'].forEach(function(tp, i) {
+    var tgt = [tGlc, tAA, tLac][i];
+    var cur = subs.filter(function(s) { return s.type === tp && s.reg === 'blood' && s.alive && !s.bound; });
+    if (cur.length < tgt && Math.random() < 0.03) spawnSub(tp, 'blood');
+    if (cur.length > tgt + 10) { var oldest = cur.reduce(function(a, b) { return a.age > b.age ? a : b; }); if (oldest) oldest.alive = false; }
+  });
+}
+
+function addSub(type, count) {
+  for (var i = 0; i < count; i++) spawnSub(type, 'blood');
+  logTxt = { glc:'Glucose', aa:'Amino acid', lac:'Lactate' }[type] + ' bolus (' + count + ' molecules)';
+}
+
+function togAuto() {
+  autoOn = !autoOn; var b = document.getElementById('abtn');
+  if (autoOn) { b.textContent = '■ Stop'; b.className = 'bt bs'; autoIv = setInterval(function() { addSub('glc', 4); if (tAA > 0) addSub('aa', 3); if (tLac > 0) addSub('lac', 2); }, 1000); }
+  else { b.textContent = '▶ Auto'; b.className = 'bt ba'; clearInterval(autoIv); }
+}
+
+function fullReset() {
+  if (autoIv) clearInterval(autoIv); autoOn = false;
+  document.getElementById('abtn').textContent = '▶ Auto'; document.getElementById('abtn').className = 'bt ba';
+  subs = []; initCarriers(); dGlc = dAA = dLac = 0; frame = 0;
+  logTxt = 'Add substrates to the bloodstream and watch carriers cycle.';
+}
+
+function updSubs() {
+  for (var i = 0; i < subs.length; i++) {
+    var s = subs[i]; if (!s.alive || s.bound) continue;
+    s.age++; if (s.cooldown > 0) s.cooldown--;
+    s.vx += (Math.random() - .5) * .14; s.vy += (Math.random() - .5) * .14;
+    s.vx *= .994; s.vy *= .994;
+    var sp = Math.sqrt(s.vx * s.vx + s.vy * s.vy); if (sp > 3) { s.vx *= 3 / sp; s.vy *= 3 / sp; }
+    s.x += s.vx; s.y += s.vy;
+    var yMin, yMax;
+    if (s.reg === 'blood') { yMin = BLOOD_T + 8; yMax = BLOOD_B - 8; }
+    else { yMin = BRAIN_T + 8; yMax = BRAIN_B - 8; }
+    if (s.x < L + 8)  { s.x = L + 8;  s.vx = Math.abs(s.vx) * .7; }
+    if (s.x > R - 8)  { s.x = R - 8;  s.vx = -Math.abs(s.vx) * .7; }
+    if (s.y < yMin)    { s.y = yMin;    s.vy = Math.abs(s.vy) * .7; }
+    if (s.y > yMax)    { s.y = yMax;    s.vy = -Math.abs(s.vy) * .7; }
+    if (s.reg === 'brain' && s.age > 1200) { s.alpha -= .003; if (s.alpha <= 0) s.alive = false; }
+  }
+  for (var i = 0; i < subs.length; i++) {
+    var a = subs[i]; if (!a.alive || a.bound) continue;
+    for (var j = i + 1; j < subs.length; j++) {
+      var b = subs[j]; if (!b.alive || b.bound || a.reg !== b.reg) continue;
+      var dx = b.x - a.x, dy = b.y - a.y, md = SUBDEF[a.type].r + SUBDEF[b.type].r;
+      if (Math.abs(dx) > md || Math.abs(dy) > md) continue;
+      var d = Math.sqrt(dx * dx + dy * dy);
+      if (d < md && d > .1) { var nx = dx / d, ny = dy / d, ov = md - d;
+        a.x -= nx * ov * .5; a.y -= ny * ov * .5; b.x += nx * ov * .5; b.y += ny * ov * .5;
+        var dvn = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny;
+        if (dvn > 0) { a.vx -= dvn * nx * .5; a.vy -= dvn * ny * .5; b.vx += dvn * nx * .5; b.vy += dvn * ny * .5; } }
+    }
   }
 }
 
-function collide(){
-  for(let i=0;i<parts.length;i++){const a=parts[i];if(!a.alive||a.bound)continue;
-    for(let j=i+1;j<parts.length;j++){const b=parts[j];if(!b.alive||b.bound)continue;if(a.reg!==b.reg)continue;
-      const dx=b.x-a.x,dy=b.y-a.y,md=a.r+b.r;if(Math.abs(dx)>md||Math.abs(dy)>md)continue;
-      const d=Math.sqrt(dx*dx+dy*dy);if(d<md&&d>.1){const nx=dx/d,ny=dy/d,ov=md-d,tm=a.m+b.m;
-        a.x-=nx*ov*b.m/tm;a.y-=ny*ov*b.m/tm;b.x+=nx*ov*a.m/tm;b.y+=ny*ov*a.m/tm;
-        const dvn=(a.vx-b.vx)*nx+(a.vy-b.vy)*ny;if(dvn>0){const imp=dvn/tm*.75;
-          a.vx-=2*b.m*imp*nx;a.vy-=2*b.m*imp*ny;b.vx+=2*a.m*imp*nx;b.vy+=2*a.m*imp*ny}}}}
+function updCarriers() {
+  for (var ci = 0; ci < carriers.length; ci++) {
+    var c = carriers[ci]; var ct = CTYPES[c.ct]; c.t++;
+    if (c.state === 'idle') {
+      var best = null, bestD = 40;
+      for (var si = 0; si < subs.length; si++) {
+        var s = subs[si];
+        if (s.type !== ct.accepts || s.bound || !s.alive || s.reg !== 'blood' || s.cooldown > 0) continue;
+        var d = Math.sqrt(Math.pow(c.x - s.x, 2) + Math.pow(CAPTURE_Y - s.y, 2));
+        if (d < bestD) { bestD = d; best = s; }
+      }
+      if (best) {
+        var dx = c.x - best.x, dy = CAPTURE_Y - best.y, d = Math.sqrt(dx * dx + dy * dy);
+        if (d > .1) { best.vx += (dx / d) * .08; best.vy += (dy / d) * .08; }
+        if (d < 10) {
+          best.bound = true; c.cargo = best.type; c.state = 'capturing'; c.t = 0; c.conf = 0;
+          logTxt = ct.name + ': ' + ({ glc:'Glucose', aa:'Amino acid', lac:'Lactate' }[best.type]) + ' binds outward site';
+        }
+      }
+    } else if (c.state === 'capturing') {
+      c.conf = Math.min(1, c.t / 90);
+      if (c.conf >= 1) { c.state = 'occluded'; c.t = 0; logTxt = ct.name + ': Both gates sealed → occluded'; }
+    } else if (c.state === 'occluded') {
+      if (c.t > 70) { c.state = 'opening'; c.t = 0; logTxt = ct.name + ': Conformational flip → inward-facing'; }
+    } else if (c.state === 'opening') {
+      c.conf = Math.max(0, 1 - c.t / 90);
+      if (c.conf <= 0) { c.state = 'releasing'; c.t = 0; }
+    } else if (c.state === 'releasing') {
+      if (c.t > 30) {
+        spawnSub(c.cargo, 'brain', c.x, BRAIN_T + 20);
+        if (c.cargo === 'glc') dGlc++; else if (c.cargo === 'aa') dAA++; else dLac++;
+        for (var si = 0; si < subs.length; si++) { if (subs[si].bound && subs[si].type === c.cargo) { subs[si].alive = false; break; } }
+        c.cargo = null; c.state = 'resetting'; c.t = 0;
+        logTxt = ct.name + ': Substrate released into brain ✓';
+      }
+    } else if (c.state === 'resetting') {
+      c.conf = Math.min(1, c.t / 70);
+      if (c.t > 110) { c.state = 'idle'; c.t = 0; c.conf = 0; }
+    }
+  }
 }
 
-// Carrier logic
-function updBind(){
-  carriers.forEach(c=>{
-    if(c.state!=='outward')return;
-    let best=null,best
+// ═══ MAIN CANVAS DRAWING ═══
+function drawRR(c, x, y, w, h, r) {
+  c.beginPath(); c.moveTo(x + r, y); c.lineTo(x + w - r, y);
+  c.quadraticCurveTo(x + w, y, x + w, y + r); c.lineTo(x + w, y + h - r);
+  c.quadraticCurveTo(x + w, y + h, x + w - r, y + h); c.lineTo(x + r, y + h);
+  c.quadraticCurveTo(x, y + h, x, y + h - r); c.lineTo(x, y + r);
+  c.quadraticCurveTo(x, y, x + r, y); c.closePath();
+}
+
+function drawSub(s) {
+  if (!s.alive || s.alpha <= 0 || s.bound) return;
+  var t = SUBDEF[s.type]; cx.save(); cx.globalAlpha = s.alpha;
+  cx.beginPath(); cx.arc(s.x, s.y, t.r + 4, 0, Math.PI * 2); cx.fillStyle = t.gw; cx.fill();
+  var g = cx.createRadialGradient(s.x - t.r * .3, s.y - t.r * .3, t.r * .1, s.x, s.y, t.r);
+  g.addColorStop(0, t.c1); g.addColorStop(1, t.c2);
+  cx.beginPath(); cx.arc(s.x, s.y, t.r, 0, Math.PI * 2); cx.fillStyle = g; cx.fill();
+  cx.strokeStyle = t.brd; cx.lineWidth = 1.2; cx.stroke();
+  cx.fillStyle = t.lc; cx.font = 'bold 6px system-ui'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+  cx.fillText(t.lb, s.x, s.y + .5); cx.restore();
+}
+
+function drawBilayer(y, col) {
+  cx.strokeStyle = col; cx.lineWidth = 2.5;
+  cx.beginPath(); cx.moveTo(L - 8, y); cx.lineTo(R + 8, y); cx.stroke();
+  cx.beginPath(); cx.moveTo(L - 8, y + 8); cx.lineTo(R + 8, y + 8); cx.stroke();
+  for (var x = L; x <= R; x += 9) {
+    var skip = false;
+    for (var ci = 0; ci < carriers.length; ci++) { if (Math.abs(x - carriers[ci].x) < 26) { skip = true; break; } }
+    if (skip) continue;
+    cx.beginPath(); cx.arc(x, y + 2, 2.8, 0, Math.PI * 2); cx.fillStyle = col; cx.fill();
+    cx.beginPath(); cx.arc(x, y + 6, 2.8, 0, Math.PI * 2); cx.fillStyle = col; cx.fill();
+  }
+}
+
+function drawCarrier(c) {
+  var ct = CTYPES[c.ct]; var x = c.x; var my = MEMB_T, ch = MEMB_B - MEMB_T;
+  var halfW = 13;
+  var topGate, botGate;
+  if (c.state === 'idle')       { topGate = 0; botGate = 1; }
+  else if (c.state === 'capturing') { topGate = c.conf; botGate = 1; }
+  else if (c.state === 'occluded')  { topGate = 1; botGate = 1; }
+  else if (c.state === 'opening')   { topGate = 1; botGate = c.conf; }
+  else if (c.state === 'releasing') { topGate = 1; botGate = 0; }
+  else if (c.state === 'resetting') { topGate = 1 - c.conf; botGate = c.conf; }
+  else { topGate = 0; botGate = 1; }
+  var gi = halfW * .85;
+  cx.save();
+  // Left subunit
+  cx.fillStyle = ct.color + 'bb'; cx.strokeStyle = ct.dark; cx.lineWidth = 1.5;
+  cx.beginPath();
+  cx.moveTo(x - halfW, my); cx.lineTo(x - 3, my);
+  cx.lineTo(x - 3 + topGate * gi * .5, my + 30);
+  cx.quadraticCurveTo(x - 3 + topGate * gi, my + ch * .35, x - 3 + Math.max(topGate, botGate) * gi * .3, my + ch * .5);
+  cx.quadraticCurveTo(x - 3 + botGate * gi, my + ch * .65, x - 3 + botGate * gi * .5, my + ch - 30);
+  cx.lineTo(x - 3, my + ch); cx.lineTo(x - halfW, my + ch); cx.closePath(); cx.fill(); cx.stroke();
+  // Right subunit
+  cx.beginPath();
+  cx.moveTo(x + halfW, my); cx.lineTo(x + 3, my);
+  cx.lineTo(x + 3 - topGate * gi * .5, my + 30);
+  cx.quadraticCurveTo(x + 3 - topGate * gi, my + ch * .35, x + 3 - Math.max(topGate, botGate) * gi * .3, my + ch * .5);
+  cx.quadraticCurveTo(x + 3 - botGate * gi, my + ch * .65, x + 3 - botGate * gi * .5, my + ch - 30);
+  cx.lineTo(x + 3, my + ch); cx.lineTo(x + halfW, my + ch); cx.closePath(); cx.fill(); cx.stroke();
+  // Interior
+  cx.fillStyle = ct.light + '88'; cx.fillRect(x - 4, my + 5, 8, ch - 10);
+  // Cargo
+  if (c.cargo) {
+    var st = SUBDEF[c.cargo]; var cargoY;
+    if (c.state === 'capturing') cargoY = my + 20 + c.conf * (ch * .35);
+    else if (c.state === 'occluded') cargoY = my + ch * .5;
+    else if (c.state === 'opening') cargoY = my + ch * .5 + (1 - c.conf) * (ch * .3);
+    else if (c.state === 'releasing') cargoY = my + ch - 20;
+    else cargoY = my + ch * .5;
+    var cg = cx.createRadialGradient(x - 2, cargoY - 2, 1, x, cargoY, st.r - 1);
+    cg.addColorStop(0, st.c1); cg.addColorStop(1, st.c2);
+    cx.beginPath(); cx.arc(x, cargoY, st.r - 1, 0, Math.PI * 2); cx.fillStyle = cg; cx.fill();
+    cx.strokeStyle = st.brd; cx.lineWidth = 1; cx.stroke();
+    cx.fillStyle = st.lc; cx.font = 'bold 5px system-ui'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+    cx.fillText(st.lb, x, cargoY + .5);
+  }
+  // Binding site
+  if (c.state === 'idle') {
+    cx.beginPath(); cx.arc(x, my - 5, 4, 0, Math.PI * 2); cx.fillStyle = ct.light; cx.fill();
+    cx.strokeStyle = ct.color; cx.lineWidth = 1; cx.stroke();
+  }
+  // Arrows
+  if (c.state === 'capturing' || c.state === 'opening') {
+    var ay = c.state === 'capturing' ? my + 25 : my + ch - 25;
+    cx.fillStyle = ct.color + '55';
+    [-1, 1].forEach(function(side) {
+      cx.beginPath(); cx.moveTo(x + side * (halfW + 10), ay);
+      cx.lineTo(x + side * (halfW + 3), ay - 5); cx.lineTo(x + side * (halfW + 3), ay + 5);
+      cx.closePath(); cx.fill();
+    });
+  }
+  // Label
+  cx.fillStyle = ct.dark; cx.font = 'bold 8px system-ui'; cx.textAlign = 'center';
+  cx.fillText(ct.name, x, my + ch + 14);
+  var stateLabel = { idle:'Outward Open', capturing:'Closing…', occluded:'Occluded', opening:'Flipping…', releasing:'Inward Open', resetting:'Resetting…' }[c.state];
+  cx.fillStyle = c.state === 'idle' ? '#94a3b8' : ct.color; cx.font = '6px system-ui';
+  cx.fillText(stateLabel, x, my + ch + 24);
+  cx.restore();
+}
+
+function drawTJ() {
+  [L + 10, R - 10].forEach(function(tx) {
+    cx.strokeStyle = '#47556988'; cx.lineWidth = 2;
+    cx.beginPath(); cx.moveTo(tx, MEMB_T);
+    for (var y = MEMB_T; y < MEMB_B; y += 8) { cx.lineTo(tx + (((y - MEMB_T) / 8) % 2 === 0 ? 4 : -4), y + 8); }
+    cx.stroke();
+    cx.save(); cx.translate(tx, (MEMB_T + MEMB_B) / 2); cx.rotate(-Math.PI / 2);
+    cx.fillStyle = '#475569'; cx.font = 'bold 6px system-ui'; cx.textAlign = 'center';
+    cx.fillText('TIGHT JUNCTION', 0, 0); cx.restore();
+  });
+}
+
+function drawAttrLines() {
+  for (var i = 0; i < subs.length; i++) {
+    var s = subs[i]; if (!s.alive || s.bound || s.reg !== 'blood' || s.cooldown > 0) continue;
+    var best = null, bD = 40;
+    for (var ci = 0; ci < carriers.length; ci++) {
+      var c = carriers[ci]; if (c.state !== 'idle' || CTYPES[c.ct].accepts !== s.type) continue;
+      var d = Math.sqrt(Math.pow(c.x - s.x, 2) + Math.pow(CAPTURE_Y - s.y, 2));
+      if (d < bD) { bD = d; best = c; }
+    }
+    if (best) {
+      cx.strokeStyle = SUBDEF[s.type].c2 + '22'; cx.lineWidth = 1; cx.setLineDash([2, 3]);
+      cx.beginPath(); cx.moveTo(s.x, s.y); cx.lineTo(best.x, CAPTURE_Y); cx.stroke(); cx.setLineDash([]);
+    }
+  }
+}
+
+function drawFrame() {
+  cx.clearRect(0, 0, W, H);
+  cx.fillStyle = '#f1f5f9'; cx.fillRect(L, BLOOD_T, R - L, BRAIN_B - BLOOD_T);
+  // Blood
+  var bG = cx.createLinearGradient(0, BLOOD_T, 0, BLOOD_B); bG.addColorStop(0, '#ffe4e6'); bG.addColorStop(1, '#fecdd3');
+  cx.fillStyle = bG; cx.fillRect(L, BLOOD_T, R - L, BLOOD_B - BLOOD_T);
+  cx.strokeStyle = '#fda4af'; cx.lineWidth = 2;
+  cx.beginPath(); cx.moveTo(L, BLOOD_T); cx.lineTo(L, BLOOD_B); cx.lineTo(R, BLOOD_B); cx.lineTo(R, BLOOD_T); cx.stroke();
+  cx.fillStyle = '#be123c'; cx.font = 'bold 12px system-ui'; cx.textAlign = 'left'; cx.fillText('Blood (Luminal Side)', L + 10, BLOOD_T + 20);
+  cx.fillStyle = '#fda4af44'; cx.font = '18px system-ui'; cx.textAlign = 'center';
+  for (var fx = L + 60; fx < R - 20; fx += 100) cx.fillText('→', fx + Math.sin(frame * .02 + fx * .01) * 3, BLOOD_T + 50 + Math.sin(frame * .015 + fx * .008) * 4);
+  // Membrane
+  cx.fillStyle = '#e8ecf0'; cx.fillRect(L, MEMB_T, R - L, MEMB_B - MEMB_T);
+  cx.fillStyle = '#475569'; cx.font = 'bold 11px system-ui'; cx.textAlign = 'left'; cx.fillText('Endothelial Cell', L + 25, MEMB_B - 14);
+  // Brain
+  var nG = cx.createLinearGradient(0, BRAIN_T, 0, BRAIN_B); nG.addColorStop(0, '#e0e7ff'); nG.addColorStop(1, '#c7d2fe');
+  cx.fillStyle = nG; cx.fillRect(L, BRAIN_T, R - L, BRAIN_B - BRAIN_T);
+  cx.strokeStyle = '#818cf8'; cx.lineWidth = 2;
+  cx.beginPath(); cx.moveTo(L, BRAIN_B); cx.lineTo(L, BRAIN_T); cx.lineTo(R, BRAIN_T); cx.lineTo(R, BRAIN_B); cx.stroke();
+  cx.fillStyle = '#4338ca'; cx.font = 'bold 12px system-ui'; cx.textAlign = 'left'; cx.fillText('Brain Parenchyma (Abluminal)', L + 10, BRAIN_B - 10);
+  // Basal lamina
+  cx.strokeStyle = '#a78bfa'; cx.lineWidth = 1.5; cx.setLineDash([4, 4]);
+  cx.beginPath(); cx.moveTo(L, BRAIN_T - 5); cx.lineTo(R, BRAIN_T - 5); cx.stroke(); cx.setLineDash([]);
+  cx.fillStyle = '#a78bfa'; cx.font = '7px system-ui'; cx.textAlign = 'center'; cx.fillText('Basal Lamina', 430, BRAIN_T - 9);
+  // Astrocytes
+  [130, 320, 510, 700].forEach(function(ax) {
+    cx.fillStyle = '#c7d2fe44'; cx.beginPath(); cx.ellipse(ax, BRAIN_T + 10, 55, 7, 0, 0, Math.PI * 2); cx.fill();
+  });
+  cx.fillStyle = '#818cf8'; cx.font = '7px system-ui'; cx.textAlign = 'center'; cx.fillText('Astrocyte End-feet', 430, BRAIN_T + 24);
+  // Bilayers
+  drawBilayer(MEMB_T - 2, '#e11d48');
+  drawBilayer(MEMB_B - 6, '#6366f1');
+  drawTJ(); drawAttrLines();
+  for (var i = 0; i < carriers.length; i++) drawCarrier(carriers[i]);
+  for (var i = 0; i < subs.length; i++) drawSub(subs[i]);
+}
+
+// ═══ INSET CANVAS DRAWING ═══
+function drawInset() {
+  icx.clearRect(0, 0, IW, IH);
+  icx.fillStyle = '#f8fafc'; icx.fillRect(0, 0, IW, IH);
+  icx.fillStyle = '#334155'; icx.font = 'bold 8px system-ui'; icx.textAlign = 'center';
+  icx.fillText('Alternating Access Mechanism', IW / 2, 14);
+
+  var phases = ['Outward\nOpen', 'Occluded', 'Inward\nOpen', 'Reset'];
+  var pw = 38, gap = 12, sy = 26, ph = 70;
+  var startX = (IW - (4 * pw + 3 * gap)) / 2;
+
+  // Determine which phases are currently active
+  var activePhases = {};
+  for (var ci = 0; ci < carriers.length; ci++) {
+    var cs = carriers[ci].state;
+    var phase = cs === 'idle' ? 0 : cs === 'capturing' ? 0 : cs === 'occluded' ? 1 : cs === 'opening' ? 2 : cs === 'releasing' ? 2 : cs === 'resetting' ? 3 : -1;
+    if (phase >= 0) activePhases[phase] = true;
+  }
+
+  for (var i = 0; i < 4; i++) {
+    var px = startX + i * (pw + gap);
+
+    // Highlight bg if active
+    if (activePhases[i]) {
+      icx.fillStyle = '#eff6ff';
+      drawRR(icx, px - 3, sy - 3, pw + 6, ph + 6, 5);
+      icx.fill();
+      icx.strokeStyle = '#6366f1'; icx.lineWidth = 2;
+      drawRR(icx, px - 3, sy - 3, pw + 6, ph + 6, 5);
+      icx.stroke();
+    }
+
+    // Channel outline
+    icx.fillStyle = '#e2e8f0'; icx.strokeStyle = '#94a3b8'; icx.lineWidth = 1;
+    drawRR(icx, px, sy, pw, ph, 4); icx.fill(); icx.stroke();
+
+    // "Blood" label top
+    icx.fillStyle = '#fda4af'; icx.font = '5px system-ui'; icx.textAlign = 'center';
+    icx.fillText('blood', px + pw / 2, sy - 4);
+    // "Brain" label bottom
+    icx.fillStyle = '#a5b4fc';
+    icx.fillText('brain', px + pw / 2, sy + ph + 8);
+
+    // Top gate bar
+    var topClosed = i >= 1 && i <= 3;
+    if (topClosed) {
+      icx.fillStyle = '#64748b';
+      icx.fillRect(px + 6, sy + 3, pw - 12, 5);
+    } else {
+      // Open notch
+      icx.fillStyle = '#d1fae5';
+      icx.fillRect(px + pw / 2 - 5, sy + 2, 10, 6);
+    }
+
+    // Bottom gate bar
+    var botClosed = i !== 2;
+    if (botClosed) {
+      icx.fillStyle = '#64748b';
+      icx.fillRect(px + 6, sy + ph - 8, pw - 12, 5);
+    } else {
+      icx.fillStyle = '#d1fae5';
+      icx.fillRect(px + pw / 2 - 5, sy + ph - 8, 10, 6);
+    }
+
+    // Substrate dot
+    if (i < 3) {
+      var dotY = i === 0 ? sy + 15 : i === 1 ? sy + ph / 2 : sy + ph - 15;
+      icx.beginPath(); icx.arc(px + pw / 2, dotY, 5, 0, Math.PI * 2);
+      var dg = icx.createRadialGradient(px + pw / 2 - 1, dotY - 1, 1, px + pw / 2, dotY, 5);
+      dg.addColorStop(0, '#fef3c7'); dg.addColorStop(1, '#d97706');
+      icx.fillStyle = dg; icx.fill();
+      icx.strokeStyle = '#92400e'; icx.lineWidth = .8; icx.stroke();
+    }
+
+    // Arrow between phases
+    if (i < 3) {
+      icx.fillStyle = '#94a3b8'; icx.font = 'bold 14px system-ui'; icx.textAlign = 'center';
+      icx.fillText('→', px + pw + gap / 2, sy + ph / 2 + 4);
+    }
+
+    // Phase label
+    icx.fillStyle = activePhases[i] ? '#1e40af' : '#64748b';
+    icx.font = (activePhases[i] ? 'bold ' : '') + '6px system-ui'; icx.textAlign = 'center';
+    var lines = phases[i].split('\n');
+    for (var li = 0; li < lines.length; li++) {
+      icx.fillText(lines[li], px + pw / 2, sy + ph + 16 + li * 8);
+    }
+  }
+}
+
+function updUI() {
+  var cycling = 0;
+  for (var i = 0; i < carriers.length; i++) if (carriers[i].state !== 'idle') cycling++;
+  document.getElementById('actR').textContent = Math.round(cycling / carriers.length * 100) + '%';
+  document.getElementById('actBar').style.width = (cycling / carriers.length * 100) + '%';
+  document.getElementById('dGlc').textContent = dGlc;
+  document.getElementById('dAA').textContent = dAA;
+  document.getElementById('dLac').textContent = dLac;
+  document.getElementById('logB').textContent = logTxt;
+}
+
+function loop() {
+  frame++;
+  maintain(); updSubs(); updCarriers();
+  subs = subs.filter(function(s) { return s.alive && s.alpha > 0; });
+  drawFrame(); drawInset(); updUI();
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
