@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D Brain Atlas</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;min-height:100vh;overflow:hidden}
+  h1{font-size:1.2rem;color:#e2e8f0;margin:10px 0 2px;text-align:center}
+  .sub{color:#94a3b8;font-size:.78rem;margin-bottom:6px;text-align:center}
+  #wrap{position:relative;width:100vw;height:calc(100vh - 60px)}
+  canvas{display:block}
+  #tooltip{
+    display:none;position:absolute;z-index:9;
+    background:#1e293bee;color:#fff;padding:6px 12px;border-radius:8px;
+    font-size:.8rem;font-weight:600;pointer-events:none;white-space:nowrap;
+    border:1px solid #334155;backdrop-filter:blur(4px);
+  }
+  #popup{
+    display:none;position:absolute;z-index:10;width:340px;
+    background:#0f172aee;border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,.5);
+    padding:18px 20px;pointer-events:auto;border:1px solid #334155;
+    backdrop-filter:blur(8px);color:#e2e8f0;
+  }
+  #popup .pname{font-size:1.05rem;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+  #popup .pdot{width:14px;height:14px;border-radius:50%;flex-shrink:0;border:2px solid rgba(255,255,255,.15)}
+  #popup .pdesc{font-size:.78rem;color:#94a3b8;line-height:1.6;margin-bottom:8px}
+  #popup .plink{font-size:.7rem;color:#64748b;font-style:italic}
+  #popup .pclose{position:absolute;top:10px;right:14px;background:none;border:none;font-size:1.2rem;color:#64748b;cursor:pointer}
+  #popup .pclose:hover{color:#fff}
+  #loading{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#64748b;font-size:.9rem;z-index:20}
+  #controls{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:5}
+  #controls button{background:#1e293b;color:#94a3b8;border:1px solid #334155;padding:6px 14px;border-radius:6px;font-size:.72rem;cursor:pointer;font-weight:600}
+  #controls button:hover{background:#334155;color:#fff}
+  #controls button.active{background:#0891b2;color:#fff;border-color:#0891b2}
+</style>
+</head>
+<body>
+<h1>3D Interactive Brain Atlas</h1>
+<p class="sub">Click + drag to rotate · Scroll to zoom · Click colored markers to learn about each region</p>
+<div id="wrap">
+  <canvas id="c"></canvas>
+  <div id="tooltip"></div>
+  <div id="popup">
+    <button class="pclose" onclick="closePopup()">✕</button>
+    <div class="pname"><div class="pdot" id="pdot"></div><span id="pname"></span></div>
+    <div class="pdesc" id="pdesc"></div>
+    <div class="plink">→ Detailed simulation page coming soon</div>
+  </div>
+  <div id="loading">Loading brain mesh…</div>
+  <div id="controls">
+    <button onclick="setView('front')">Front</button>
+    <button onclick="setView('side')">Side</button>
+    <button onclick="setView('top')">Top</button>
+    <button id="labBtn" class="active" onclick="togLabels()">Labels</button>
+  </div>
+</div>
+<script>
+// Minimal 3D engine — no dependencies
+const cv=document.getElementById('c'),gl=cv.getContext('webgl',{antialias:true,alpha:false});
+const wrap=document.getElementById('wrap');
+let W,H;
+function resize(){W=wrap.clientWidth;H=wrap.clientHeight;cv.width=W*devicePixelRatio;cv.height=H*devicePixelRatio;cv.style.width=W+'px';cv.style.height=H+'px';gl.viewport(0,0,cv.width,cv.height)}
+resize();window.addEventListener('resize',resize);
+
+// Math
+function mat4(){return new Float32Array(16)}
+function identity(o){o.fill(0);o[0]=o[5]=o[10]=o[15]=1;return o}
+function perspective(o,fov,asp,n,f){const t=1/Math.tan(fov/2),r=1/(n-f);o.fill(0);o[0]=t/asp;o[5]=t;o[10]=(f+n)*r;o[11]=-1;o[14]=2*f*n*r;return o}
+function lookAt(o,ex,ey,ez,cx,cy,cz){
+  let fx=cx-ex,fy=cy-ey,fz=cz-ez,l=Math.sqrt(fx*fx+fy*fy+fz*fz);fx/=l;fy/=l;fz/=l;
+  let ux=0,uy=1,uz=0;
+  let sx=fy*uz-fz*uy,sy=fz*ux-fx*uz,sz=fx*uy-fy*ux;l=Math.sqrt(sx*sx+sy*sy+sz*sz);sx/=l;sy/=l;sz/=l;
+  ux=sy*fz-sz*fy;uy=sz*fx-sx*fz;uz=sx*fy-sy*fx;
+  o[0]=sx;o[1]=ux;o[2]=-fx;o[3]=0;
+  o[4]=sy;o[5]=uy;o[6]=-fy;o[7]=0;
+  o[8]=sz;o[9]=uz;o[10]=-fz;o[11]=0;
+  o[12]=-(sx*ex+sy*ey+sz*ez);o[13]=-(ux*ex+uy*ey+uz*ez);o[14]=(fx*ex+fy*ey+fz*ez);o[15]=1;return o;
+}
+function multiply(o,a,b){for(let i=0;i<4;i++)for(let j=0;j<4;j++){let s=0;for(let k=0;k<4;k++)s+=a[i+k*4]*b[k+j*4];o[i+j*4]=s}return o}
+function transformPt(m,x,y,z){
+  const w=m[3]*x+m[7]*y+m[11]*z+m[15];
+  return[(m[0]*x+m[4]*y+m[8]*z+m[12])/w,(m[1]*x+m[5]*y+m[9]*z+m[13])/w,(m[2]*x+m[6]*y+m[10]*z+m[14])/w];
+}
+
+// Shader
+function mkShader(src,type){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);return s}
+function mkProg(vs,fs){const p=gl.createProgram();gl.attachShader(p,mkShader(vs,gl.VERTEX_SHADER));gl.attachShader(p,mkShader(fs,gl.FRAGMENT_SHADER));gl.linkProgram(p);return p}
+
+const brainVS=`attribute vec3 aPos;attribute vec3 aNorm;uniform mat4 uMVP;uniform mat4 uModel;varying vec3 vNorm;varying vec3 vPos;
+void main(){gl_Position=uMVP*vec4(aPos,1.);vNorm=mat3(uModel)*aNorm;vPos=aPos;}`;
+const brainFS=`precision mediump float;varying vec3 vNorm;varying vec3 vPos;uniform vec3 uLight;uniform vec3 uColor;uniform float uAlpha;
+void main(){vec3 n=normalize(vNorm);vec3 l=normalize(uLight-vPos);float d=max(dot(n,l),0.);vec3 c=uColor*(0.35+0.65*d);gl_FragColor=vec4(c,uAlpha);}`;
+
+const pointVS=`attribute vec3 aPos;uniform mat4 uMVP;uniform float uSize;void main(){gl_Position=uMVP*vec4(aPos,1.);gl_PointSize=uSize;}`;
+const pointFS=`precision mediump float;uniform vec3 uColor;void main(){float d=length(gl_PointCoord-0.5);if(d>0.5)discard;float a=smoothstep(0.5,0.35,d);gl_FragColor=vec4(uColor,a);}`;
+
+const prog=mkProg(brainVS,brainFS);
+const pProg=mkProg(pointVS,pointFS);
+const uMVP=gl.getUniformLocation(prog,'uMVP'),uModel=gl.getUniformLocation(prog,'uModel'),uLight=gl.getUniformLocation(prog,'uLight'),uColor=gl.getUniformLocation(prog,'uColor'),uAlpha=gl.getUniformLocation(prog,'uAlpha');
+const puMVP=gl.getUniformLocation(pProg,'uMVP'),puSize=gl.getUniformLocation(pProg,'uSize'),puColor=gl.getUniformLocation(pProg,'uColor');
+
+// Camera
+let camTheta=0,camPhi=0.3,camDist=220,camTarget=[0,0,10];
+let targetTheta=camTheta,targetPhi=camPhi,targetDist=camDist;
+
+function camPos(){return[camTarget[0]+camDist*Math.cos(camPhi)*Math.sin(camTheta),camTarget[1]+camDist*Math.sin(camPhi),camTarget[2]+camDist*Math.cos(camPhi)*Math.cos(camTheta)]}
+
+// Orbit
+let drag=false,lastX,lastY,popupOpen=false;
+cv.addEventListener('mousedown',e=>{if(e.button===0){drag=true;lastX=e.clientX;lastY=e.clientY}});
+window.addEventListener('mouseup',()=>drag=false);
+window.addEventListener('mousemove',e=>{
+  if(drag){
+    targetTheta-=(e.clientX-lastX)*0.006;
+    targetPhi+=(e.clientY-lastY)*0.006;
+    targetPhi=Math.max(-1.4,Math.min(1.4,targetPhi));
+    lastX=e.clientX;lastY=e.clientY;
+  }
+});
+cv.addEventListener('wheel',e=>{e.preventDefault();targetDist=Math.max(100,Math.min(500,targetDist+e.deltaY*0.3))},{passive:false});
+
+// Touch
+let touch0=null,touch1=null,touchDist0=0;
+cv.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  if(e.touches.length===1){drag=true;lastX=e.touches[0].clientX;lastY=e.touches[0].clientY;touch0=e.touches[0]}
+  if(e.touches.length===2){drag=false;touch0=e.touches[0];touch1=e.touches[1];touchDist0=Math.hypot(touch1.clientX-touch0.clientX,touch1.clientY-touch0.clientY)}
+},{passive:false});
+cv.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  if(e.touches.length===1&&drag){
+    targetTheta-=(e.touches[0].clientX-lastX)*0.006;
+    targetPhi+=(e.touches[0].clientY-lastY)*0.006;
+    targetPhi=Math.max(-1.4,Math.min(1.4,targetPhi));
+    lastX=e.touches[0].clientX;lastY=e.touches[0].clientY;
+  }
+  if(e.touches.length===2){
+    const d=Math.hypot(e.touches[1].clientX-e.touches[0].clientX,e.touches[1].clientY-e.touches[0].clientY);
+    targetDist=Math.max(100,Math.min(500,targetDist-(d-touchDist0)*0.5));touchDist0=d;
+  }
+},{passive:false});
+cv.addEventListener('touchend',()=>{drag=false});
+
+// Regions
+const regions=[
+  {name:'Prefrontal Cortex',pos:[6,30,62],color:[0.2,0.7,0.9],desc:'The anterior part of the frontal lobe, critical for executive functions: working memory, planning, decision-making, personality expression, and moderating social behavior. Contains Brodmann areas 9, 10, 11, 46, 47. Receives dopaminergic input from VTA (mesocortical pathway). Hypofunction is implicated in ADHD and the negative symptoms of schizophrenia; damage causes disinhibition and poor judgment (cf. Phineas Gage).'},
+  {name:'Motor Cortex',pos:[6,25,45],color:[0.9,0.3,0.3],desc:'The precentral gyrus (Brodmann area 4) containing the primary motor cortex. Giant Betz cells in layer V project via the corticospinal tract to spinal motor neurons, with a somatotopic organization (motor homunculus). Stimulation produces contralateral movement. The premotor cortex (area 6) and supplementary motor area plan and sequence movements. Lesions cause contralateral upper motor neuron weakness.'},
+  {name:'Somatosensory Cortex',pos:[6,15,47],color:[0.9,0.7,0.2],desc:'The postcentral gyrus (Brodmann areas 3, 1, 2) receiving somatotopic tactile, proprioceptive, and nociceptive input from the ventral posterolateral (VPL) nucleus of the thalamus. Contains the sensory homunculus — hands and lips have disproportionately large representation reflecting their receptor density. Lesions cause contralateral cortical sensory loss with impaired two-point discrimination and stereognosis.'},
+  {name:'Visual Cortex',pos:[6,-55,12],color:[0.4,0.8,0.4],desc:'Located in the occipital lobe surrounding the calcarine sulcus (Brodmann area 17 = V1). Receives retinotopic input from the lateral geniculate nucleus. Processes orientation, spatial frequency, color (blobs), and motion. V1 feeds the ventral stream ("what" pathway → temporal lobe) and dorsal stream ("where/how" pathway → parietal lobe). Damage causes cortical blindness with preserved pupillary reflexes. Bilateral V1 lesions with denial = Anton syndrome.'},
+  {name:'Auditory Cortex',pos:[48,-10,8],color:[0.8,0.4,0.8],desc:'Located in the superior temporal gyrus within the lateral sulcus (Brodmann areas 41, 42 = Heschl\'s gyrus). Receives tonotopic input from the medial geniculate nucleus. Processes pitch, timbre, and temporal patterns of sound. Wernicke\'s area (posterior area 22) in the dominant hemisphere is critical for speech comprehension. Lesions cause cortical deafness (bilateral) or impaired speech comprehension (dominant hemisphere).'},
+  {name:'Broca\'s Area',pos:[42,20,18],color:[0.9,0.6,0.3],desc:'Located in the inferior frontal gyrus of the dominant (usually left) hemisphere, Brodmann areas 44 and 45. Essential for speech production, syntax processing, and motor planning of articulation. Connected to Wernicke\'s area via the arcuate fasciculus. Damage causes Broca\'s (expressive/nonfluent) aphasia: effortful, telegraphic speech with intact comprehension. Also involved in action observation and the "mirror neuron" system.'},
+  {name:'Hippocampus',pos:[24,-18,-12],color:[0.3,0.9,0.7],desc:'A seahorse-shaped allocortical structure in the medial temporal lobe essential for consolidating new episodic and spatial memories. Contains place cells (CA1/CA3) and receives grid cell input from entorhinal cortex. The trisynaptic circuit (EC → DG → CA3 → CA1) supports pattern separation and completion. One of two sites of adult neurogenesis. Among the first regions affected in Alzheimer\'s disease. Bilateral damage causes dense anterograde amnesia (cf. patient H.M.).'},
+  {name:'Amygdala',pos:[22,-4,-16],color:[0.9,0.3,0.5],desc:'An almond-shaped complex of ~13 nuclei in the anterior medial temporal lobe. The basolateral complex receives convergent sensory input and encodes stimulus–value associations. The central nucleus drives autonomic fear responses via hypothalamus, PAG, and brainstem. Critical for Pavlovian fear conditioning, emotional memory modulation (via BLA → hippocampus), and social cognition. Dysfunction implicated in anxiety disorders, PTSD, and autism.'},
+  {name:'Thalamus',pos:[8,-12,8],color:[0.7,0.5,0.9],desc:'The central relay hub of the brain. Nearly all sensory modalities (except olfaction) relay through specific thalamic nuclei: LGN (vision), MGN (audition), VPL/VPM (somatosensation). VL nucleus relays cerebellar/basal ganglia motor signals to cortex. The reticular nucleus gates information flow and regulates consciousness and attention. The anterior nucleus connects hippocampus to cingulate cortex (Papez circuit). Bilateral thalamic lesions can cause coma.'},
+  {name:'Cerebellum',pos:[6,-48,-20],color:[0.5,0.8,0.3],desc:'The "little brain" containing over 50% of all neurons despite being ~10% of brain volume. Its principal cell is the Purkinje neuron, which provides the sole output of the cerebellar cortex (inhibitory, GABAergic). The cerebellum computes motor error signals for online correction, timing, coordination, and motor learning. The cerebrocerebellum (lateral hemispheres) also contributes to cognition and language. Damage causes ipsilateral ataxia, dysmetria, intention tremor, and dysarthria.'},
+  {name:'Brainstem',pos:[4,-24,-22],color:[0.6,0.6,0.6],desc:'Comprising the midbrain, pons, and medulla oblongata. Contains cranial nerve nuclei (III–XII), ascending/descending tracts, and the reticular formation (arousal, consciousness). The medulla houses vital cardiovascular and respiratory centers. The pons contains pneumotaxic centers and pontine nuclei relaying cortical input to cerebellum. The midbrain contains the superior/inferior colliculi, substantia nigra, and red nucleus. Brainstem death = legal death in most jurisdictions.'},
+  {name:'Corpus Callosum',pos:[2,8,22],color:[0.9,0.9,0.8],desc:'The largest white matter commissure (~200 million axons) connecting homologous cortical regions of the two hemispheres. Organized anteroposteriorly: rostrum and genu connect prefrontal regions, body connects motor/somatosensory, splenium connects occipital/temporal. Surgical transection (callosotomy) for epilepsy reveals lateralized functions: split-brain patients cannot name objects presented to the left visual field. Agenesis is often asymptomatic due to developmental compensation.'},
+  {name:'Basal Ganglia',pos:[18,4,6],color:[0.9,0.5,0.2],desc:'A group of subcortical nuclei (caudate, putamen, globus pallidus, subthalamic nucleus, substantia nigra) that form parallel cortico-basal ganglia-thalamocortical loops for motor control, habit formation, reward learning, and cognitive flexibility. The direct pathway facilitates movement; the indirect pathway suppresses it. Dopamine from SNc modulates striatal activity. Parkinson\'s disease (SNc degeneration) causes bradykinesia, rigidity, tremor. Huntington\'s disease (striatal degeneration) causes chorea.'},
+  {name:'Cingulate Cortex',pos:[4,4,35],color:[0.3,0.7,0.7],desc:'A C-shaped cortical region on the medial surface wrapping around the corpus callosum. The anterior cingulate cortex (ACC, area 24/32) monitors conflict, error detection, and pain processing — it is the "alarm system" of the brain. The posterior cingulate (area 23/31) is a core node of the default mode network, active during self-referential thought and episodic memory retrieval. The ACC is a target for deep brain stimulation in treatment-resistant depression.'},
+  {name:'Insular Cortex',pos:[38,2,4],color:[0.8,0.6,0.5],desc:'Hidden deep within the lateral sulcus beneath the opercula. The posterior insula processes interoceptive signals (pain, temperature, visceral sensation) via the spinothalamocortical pathway. The anterior insula integrates these with emotion and cognition, supporting subjective body awareness, empathy, disgust, and risk evaluation. A key node of the salience network. Heavily implicated in addiction (craving representation), chronic pain, and anxiety disorders.'}
+];
+
+// Mirror regions to left hemisphere
+const allRegions=[];
+regions.forEach(r=>{
+  allRegions.push(r);
+  if(Math.abs(r.pos[0])>3){
+    allRegions.push({...r,pos:[-r.pos[0],r.pos[1],r.pos[2]],name:r.name+' (L)',mirrored:true});
+  }
+});
+
+// Brain mesh
+let brainVBO=null,brainIBO=null,brainNBO=null,triCount=0;
+let markerVBO=null;
+let loaded=false;
+
+async function loadBrain(){
+  const url='https://raw.githubusercontent.com/mingruixia/BrainNet-Viewer/master/Data/SurfTemplate/BrainMesh_Ch2_smoothed.nv';
+  try{
+    const resp=await fetch(url);
+    const text=await resp.text();
+    const lines=text.trim().split('\n');
+    const nVerts=parseInt(lines[0]);
+    const verts=new Float32Array(nVerts*3);
+    for(let i=0;i<nVerts;i++){
+      const p=lines[1+i].trim().split(/\s+/);
+      verts[i*3]=parseFloat(p[0]);verts[i*3+1]=parseFloat(p[2]);verts[i*3+2]=parseFloat(p[1]); // swap Y/Z
+    }
+    const nTris=parseInt(lines[1+nVerts]);
+    const indices=new Uint32Array(nTris*3);
+    for(let i=0;i<nTris;i++){
+      const p=lines[2+nVerts+i].trim().split(/\s+/);
+      indices[i*3]=parseInt(p[0])-1;indices[i*3+1]=parseInt(p[1])-1;indices[i*3+2]=parseInt(p[2])-1;
+    }
+    // Compute normals
+    const norms=new Float32Array(nVerts*3);
+    for(let i=0;i<nTris;i++){
+      const i0=indices[i*3],i1=indices[i*3+1],i2=indices[i*3+2];
+      const ax=verts[i1*3]-verts[i0*3],ay=verts[i1*3+1]-verts[i0*3+1],az=verts[i1*3+2]-verts[i0*3+2];
+      const bx=verts[i2*3]-verts[i0*3],by=verts[i2*3+1]-verts[i0*3+1],bz=verts[i2*3+2]-verts[i0*3+2];
+      const nx=ay*bz-az*by,ny=az*bx-ax*bz,nz=ax*by-ay*bx;
+      for(const idx of[i0,i1,i2]){norms[idx*3]+=nx;norms[idx*3+1]+=ny;norms[idx*3+2]+=nz}
+    }
+    for(let i=0;i<nVerts;i++){
+      const l=Math.sqrt(norms[i*3]**2+norms[i*3+1]**2+norms[i*3+2]**2)||1;
+      norms[i*3]/=l;norms[i*3+1]/=l;norms[i*3+2]/=l;
+    }
+    brainVBO=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,brainVBO);gl.bufferData(gl.ARRAY_BUFFER,verts,gl.STATIC_DRAW);
+    brainNBO=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,brainNBO);gl.bufferData(gl.ARRAY_BUFFER,norms,gl.STATIC_DRAW);
+    brainIBO=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,brainIBO);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,indices,gl.STATIC_DRAW);
+    triCount=nTris;
+    // Marker positions
+    const mPos=new Float32Array(allRegions.length*3);
+    allRegions.forEach((r,i)=>{mPos[i*3]=r.pos[0];mPos[i*3+1]=r.pos[2];mPos[i*3+2]=r.pos[1]});
+    markerVBO=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,markerVBO);gl.bufferData(gl.ARRAY_BUFFER,mPos,gl.STATIC_DRAW);
+    loaded=true;
+    document.getElementById('loading').style.display='none';
+  }catch(e){document.getElementById('loading').textContent='Failed to load mesh. Check CORS/network.';console.error(e)}
+}
+loadBrain();
+
+// Rendering
+const projMat=mat4(),viewMat=mat4(),mvpMat=mat4(),modelMat=mat4(),tmpMat=mat4();
+
+let showLabels=true;
+function togLabels(){showLabels=!showLabels;document.getElementById('labBtn').classList.toggle('active')}
+
+function setView(v){
+  if(v==='front'){targetTheta=0;targetPhi=0}
+  else if(v==='side'){targetTheta=Math.PI/2;targetPhi=0}
+  else if(v==='top'){targetTheta=0;targetPhi=1.35}
+}
+
+function project(x,y,z){
+  const p=transformPt(mvpMat,x,y,z);
+  return[(p[0]*0.5+0.5)*W,(1-(p[1]*0.5+0.5))*H,p[2]];
+}
+
+const tooltip=document.getElementById('tooltip');
+const popup=document.getElementById('popup');
+let hoveredIdx=-1;
+
+cv.addEventListener('mousemove',e=>{
+  if(drag||!loaded)return;
+  const mx=e.offsetX,my=e.offsetY;
+  let best=-1,bestD=20;
+  allRegions.forEach((r,i)=>{
+    const s=project(r.pos[0],r.pos[2],r.pos[1]);
+    if(s[2]<-1||s[2]>1)return;
+    const d=Math.hypot(s[0]-mx,s[1]-my);
+    if(d<bestD){bestD=d;best=i}
+  });
+  hoveredIdx=best;
+  if(best>=0&&!popupOpen){
+    tooltip.style.display='block';
+    tooltip.textContent=allRegions[best].name;
+    tooltip.style.left=(e.offsetX+15)+'px';tooltip.style.top=(e.offsetY-10)+'px';
+    cv.style.cursor='pointer';
+  }else{tooltip.style.display='none';cv.style.cursor='grab'}
+});
+
+cv.addEventListener('click',e=>{
+  if(!loaded)return;
+  const mx=e.offsetX,my=e.offsetY;
+  let best=-1,bestD=20;
+  allRegions.forEach((r,i)=>{
+    const s=project(r.pos[0],r.pos[2],r.pos[1]);
+    if(s[2]<-1||s[2]>1)return;
+    const d=Math.hypot(s[0]-mx,s[1]-my);
+    if(d<bestD){bestD=d;best=i}
+  });
+  if(best>=0){
+    const r=allRegions[best];
+    popupOpen=true;tooltip.style.display='none';
+    document.getElementById('pname').textContent=r.name;
+    document.getElementById('pdesc').textContent=r.desc;
+    document.getElementById('pdot').style.background=`rgb(${r.color[0]*255|0},${r.color[1]*255|0},${r.color[2]*255|0})`;
+    popup.style.display='block';
+    let px=e.offsetX+20,py=e.offsetY-80;
+    if(px+360>W)px=e.offsetX-360;if(py<5)py=10;if(py+280>H)py=H-290;
+    popup.style.left=px+'px';popup.style.top=py+'px';
+  }else closePopup();
+});
+function closePopup(){popup.style.display='none';popupOpen=false}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closePopup()});
+
+// 2D label overlay
+const labelCv=document.createElement('canvas');
+labelCv.style.cssText='position:absolute;top:0;left:0;pointer-events:none;z-index:4';
+wrap.appendChild(labelCv);
+const lx=labelCv.getContext('2d');
+function resizeLabel(){labelCv.width=W*devicePixelRatio;labelCv.height=H*devicePixelRatio;labelCv.style.width=W+'px';labelCv.style.height=H+'px';lx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0)}
+resizeLabel();window.addEventListener('resize',resizeLabel);
+
+function drawLabels(){
+  lx.clearRect(0,0,W,H);
+  if(!showLabels||!loaded)return;
+  lx.font='bold 9px system-ui';lx.textAlign='center';lx.textBaseline='bottom';
+  allRegions.forEach((r,i)=>{
+    if(r.mirrored)return;
+    const s=project(r.pos[0],r.pos[2],r.pos[1]);
+    if(s[2]<-1||s[2]>1)return;
+    lx.fillStyle='rgba(255,255,255,0.7)';
+    lx.fillText(r.name,s[0],s[1]-10);
+  });
+}
+
+function frame(){
+  requestAnimationFrame(frame);
+  camTheta+=(targetTheta-camTheta)*0.1;
+  camPhi+=(targetPhi-camPhi)*0.1;
+  camDist+=(targetDist-camDist)*0.1;
+
+  const cp=camPos();
+  perspective(projMat,0.6,W/H,1,1000);
+  lookAt(viewMat,cp[0],cp[1],cp[2],camTarget[0],camTarget[1],camTarget[2]);
+  identity(modelMat);
+  multiply(tmpMat,projMat,viewMat);
+  multiply(mvpMat,tmpMat,modelMat);
+
+  gl.clearColor(0.1,0.1,0.18,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+
+  if(loaded){
+    // Brain mesh
+    gl.useProgram(prog);
+    gl.uniformMatrix4fv(uMVP,false,mvpMat);gl.uniformMatrix4fv(uModel,false,modelMat);
+    gl.uniform3f(uLight,100,200,150);gl.uniform3f(uColor,0.82,0.75,0.72);gl.uniform1f(uAlpha,0.35);
+    const aPos=gl.getAttribLocation(prog,'aPos'),aNorm=gl.getAttribLocation(prog,'aNorm');
+    gl.bindBuffer(gl.ARRAY_BUFFER,brainVBO);gl.enableVertexAttribArray(aPos);gl.vertexAttribPointer(aPos,3,gl.FLOAT,false,0,0);
+    gl.bindBuffer(gl.ARRAY_BUFFER,brainNBO);gl.enableVertexAttribArray(aNorm);gl.vertexAttribPointer(aNorm,3,gl.FLOAT,false,0,0);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,brainIBO);
+    gl.drawElements(gl.TRIANGLES,triCount*3,gl.UNSIGNED_INT,0);
+    gl.disableVertexAttribArray(aNorm);
+
+    // Markers
+    gl.useProgram(pProg);gl.uniformMatrix4fv(puMVP,false,mvpMat);
+    gl.bindBuffer(gl.ARRAY_BUFFER,markerVBO);
+    const pPos=gl.getAttribLocation(pProg,'aPos');
+    gl.enableVertexAttribArray(pPos);gl.vertexAttribPointer(pPos,3,gl.FLOAT,false,0,0);
+    gl.disable(gl.DEPTH_TEST);
+    allRegions.forEach((r,i)=>{
+      const isH=hoveredIdx===i;
+      gl.uniform1f(puSize,(isH?18:11)*devicePixelRatio);
+      gl.uniform3f(puColor,r.color[0],r.color[1],r.color[2]);
+      gl.drawArrays(gl.POINTS,i,1);
+    });
+    gl.enable(gl.DEPTH_TEST);
+    gl.disableVertexAttribArray(pPos);
+  }
+  drawLabels();
+}
+
+// Enable OES for uint32 indices
+gl.getExtension('OES_element_index_uint');
+frame();
+</script>
+</body>
+</html>
