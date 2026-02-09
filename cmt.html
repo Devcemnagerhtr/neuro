@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Carrier-Mediated Transport Across the BBB</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:#dfe6ed;display:flex;flex-direction:column;align-items:center;padding:10px 10px 20px;min-height:100vh}
+  h1{font-size:1.25rem;color:#1e293b;margin-top:4px}
+  .sub{color:#64748b;font-size:.8rem;margin-bottom:8px}
+  .lay{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+  .cw{background:#fff;border-radius:12px;box-shadow:0 2px 14px rgba(0,0,0,.1);padding:6px}
+  canvas{display:block;border-radius:8px;cursor:crosshair}
+  .pn{background:#fff;border-radius:12px;box-shadow:0 2px 14px rgba(0,0,0,.1);padding:14px 16px;width:260px;display:flex;flex-direction:column;gap:9px;font-size:.84rem}
+  .pn h2{font-size:.68rem;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;border-bottom:1px solid #e2e8f0;padding-bottom:4px;margin:4px 0 0 0}
+  .param-row{margin-bottom:2px}
+  .param-label{display:flex;justify-content:space-between;color:#475569;font-size:.75rem;font-weight:500;margin-bottom:2px}
+  .param-val{color:#0891b2;font-family:monospace;font-weight:700}
+  input[type=range]{width:100%;height:4px;background:#e2e8f0;border-radius:2px;-webkit-appearance:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;background:#0891b2;border-radius:50%;cursor:pointer}
+  .bt{padding:9px;border:none;border-radius:7px;font-weight:700;font-size:.84rem;cursor:pointer;width:100%;transition:transform .1s}
+  .bt:hover{transform:translateY(-1px);filter:brightness(1.06)}
+  .bg{background:#0891b2;color:#fff}.ba{background:#7c3aed;color:#fff}.bb{background:#dc2626;color:#fff}.bc{background:#d97706;color:#fff}.bd{background:#16a34a;color:#fff}.bs{background:#e11d48;color:#fff}.br{background:#e2e8f0;color:#64748b}
+  .ro{background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:6px 9px;display:flex;justify-content:space-between;align-items:center}
+  .ro .lb{font-size:.65rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px}
+  .ro .vl{font-size:1rem;font-weight:700;font-family:'Courier New',monospace}
+  .lg{font-size:.72rem;color:#334155;min-height:38px;background:#fefce8;border:1px solid #fef08a;border-radius:7px;padding:7px;line-height:1.35;font-weight:500}
+  .prog-wrap{background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:6px 9px}
+  .prog-wrap .lb{font-size:.65rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px}
+  .prog-outer{height:10px;background:#e2e8f0;border-radius:6px;overflow:hidden;position:relative}
+  .prog-fill{height:100%;border-radius:6px;transition:width .2s}
+  .prog-label{display:flex;justify-content:space-between;font-size:.62rem;color:#94a3b8;margin-top:2px}
+</style>
+</head>
+<body>
+<h1>Carrier-Mediated Transport Across the BBB</h1>
+<p class="sub">GLUT1 (glucose) · LAT1 (amino acids) · MCT1 (lactate) — conformational shuttle, no vesicles</p>
+<div class="lay">
+<div class="cw"><canvas id="c"></canvas></div>
+<div class="pn">
+  <h2>Release Substrates</h2>
+  <div style="display:flex;gap:6px">
+    <button class="bt bc" onclick="releaseGlc()">Glucose</button>
+    <button class="bt bb" onclick="releaseAA()">Amino A.</button>
+    <button class="bt bd" onclick="releaseLac()">Lactate</button>
+  </div>
+  <div style="display:flex;gap:6px">
+    <button class="bt ba" id="abtn" onclick="togAuto()">▶ Auto</button>
+    <button class="bt br" onclick="fullReset()">Reset</button>
+  </div>
+  <h2>Blood Concentrations</h2>
+  <div class="param-row">
+    <div class="param-label">Glucose <span class="param-val" id="valGlc">8</span></div>
+    <input type="range" id="slGlc" min="0" max="30" value="8" oninput="updParams()">
+  </div>
+  <div class="param-row">
+    <div class="param-label">Amino Acids <span class="param-val" id="valAA">4</span></div>
+    <input type="range" id="slAA" min="0" max="20" value="4" oninput="updParams()">
+  </div>
+  <div class="param-row">
+    <div class="param-label">Lactate <span class="param-val" id="valLac">3</span></div>
+    <input type="range" id="slLac" min="0" max="20" value="3" oninput="updParams()">
+  </div>
+  <h2>Readouts</h2>
+  <div class="prog-wrap">
+    <div class="lb">Transporter Occupancy</div>
+    <div class="prog-outer"><div class="prog-fill" id="occBar" style="width:0%;background:#d97706"></div></div>
+    <div class="prog-label"><span id="occR">0 / 8</span><span>GLUT1 · LAT1 · MCT1</span></div>
+  </div>
+  <div class="ro"><div class="lb">Glucose Delivered</div><div class="vl" id="glcV" style="color:#d97706">0</div></div>
+  <div class="ro"><div class="lb">Amino Acids Delivered</div><div class="vl" id="aaV" style="color:#dc2626">0</div></div>
+  <div class="ro"><div class="lb">Lactate Delivered</div><div class="vl" id="lacV" style="color:#16a34a">0</div></div>
+  <div class="ro"><div class="lb">Total Flux</div><div class="vl" id="totV" style="color:#475569">0</div></div>
+  <h2>Status</h2>
+  <div class="lg" id="logB">Release substrates into the blood.</div>
+</div>
+</div>
+<script>
+const cv=document.getElementById('c'),cx=cv.getContext('2d');
+const W=860,H=660,D=window.devicePixelRatio||1;
+cv.width=W*D;cv.height=H*D;cv.style.width=W+'px';cv.style.height=H+'px';
+cx.setTransform(D,0,0,D,0,0);
+
+const LY={bloodT:5,bloodB:145,cytoT:154,cytoB:388,mpT:388,mpB:420,brainT:424,brainB:630,L:50,R:810};
+const MH=LY.mpB-LY.mpT;
+const BSY=LY.bloodB-3-14;
+
+function rr(x,y,w,h,r){cx.beginPath();cx.moveTo(x+r,y);cx.lineTo(x+w-r,y);cx.quadraticCurveTo(x+w,y,x+w,y+r);cx.lineTo(x+w,y+h-r);cx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);cx.lineTo(x+r,y+h);cx.quadraticCurveTo(x,y+h,x,y+h-r);cx.lineTo(x,y+r);cx.quadraticCurveTo(x,y,x+r,y);cx.closePath()}
+
+// Particle types
+const PT={
+  glc:{r:6,m:1.0,c1:'#fef3c7',c2:'#d97706',brd:'#b45309',gw:'rgba(217,119,6,0.18)',lb:'Glc',lc:'#78350f',fs:6},
+  aa:{r:5.5,m:.8,c1:'#fee2e2',c2:'#dc2626',brd:'#b91c1c',gw:'rgba(220,38,38,0.16)',lb:'AA',lc:'#fff',fs:6},
+  lac:{r:5,m:.7,c1:'#d1fae5',c2:'#16a34a',brd:'#15803d',gw:'rgba(22,163,74,0.18)',lb:'Lac',lc:'#fff',fs:5.5},
+  // Brain-side versions (same look)
+  bglc:{r:6,m:1.0,c1:'#fef3c7',c2:'#d97706',brd:'#b45309',gw:'rgba(217,119,6,0.18)',lb:'Glc',lc:'#78350f',fs:6},
+  baa:{r:5.5,m:.8,c1:'#fee2e2',c2:'#dc2626',brd:'#b91c1c',gw:'rgba(220,38,38,0.16)',lb:'AA',lc:'#fff',fs:6},
+  blac:{r:5,m:.7,c1:'#d1fae5',c2:'#16a34a',brd:'#15803d',gw:'rgba(22,163,74,0.18)',lb:'Lac',lc:'#fff',fs:5.5}
+};
+
+let parts=[],frame=0,autoOn=false,autoIv=null;
+let logTxt='Release substrates into the blood.';
+let targetGlc=8,targetAA=4,targetLac=3;
+let deliveredGlc=0,deliveredAA=0,deliveredLac=0;
+
+// Carriers
+// state: 'outward' (facing blood), 'bound', 'transitioning', 'inward' (facing brain), 'releasing', 'resetting'
+let carriers=[
+  {x:100, type:'GLUT1',accepts:'glc',state:'outward',lig:null,timer:0,conf:0},
+  {x:220, type:'GLUT1',accepts:'glc',state:'outward',lig:null,timer:0,conf:0},
+  {x:340, type:'LAT1', accepts:'aa', state:'outward',lig:null,timer:0,conf:0},
+  {x:430, type:'GLUT1',accepts:'glc',state:'outward',lig:null,timer:0,conf:0},
+  {x:540, type:'MCT1', accepts:'lac',state:'outward',lig:null,timer:0,conf:0},
+  {x:630, type:'LAT1', accepts:'aa', state:'outward',lig:null,timer:0,conf:0},
+  {x:720, type:'GLUT1',accepts:'glc',state:'outward',lig:null,timer:0,conf:0},
+  {x:790, type:'MCT1', accepts:'lac',state:'outward',lig:null,timer:0,conf:0}
+];
+
+function updParams(){
+  targetGlc=parseInt(document.getElementById('slGlc').value);document.getElementById('valGlc').textContent=targetGlc;
+  targetAA=parseInt(document.getElementById('slAA').value);document.getElementById('valAA').textContent=targetAA;
+  targetLac=parseInt(document.getElementById('slLac').value);document.getElementById('valLac').textContent=targetLac;
+}
+
+function spawn(type,x,y,reg,vx,vy){
+  const t=PT[type];
+  parts.push({type,x,y,vx:vx||(Math.random()-.5)*1.5,vy:vy||(Math.random()-.5)*1.5,r:t.r,m:t.m,reg,alive:true,bound:false,alpha:1,age:0});
+}
+
+function maintain(){
+  ['glc','aa','lac'].forEach((tp,i)=>{
+    const tgt=[targetGlc,targetAA,targetLac][i];
+    const cur=parts.filter(p=>p.type===tp&&p.reg==='blood'&&p.alive&&!p.bound);
+    if(cur.length<tgt&&Math.random()<.06)spawn(tp,LY.L+30+Math.random()*(LY.R-LY.L-60),LY.bloodT+10+Math.random()*(LY.bloodB-LY.bloodT-25),'blood');
+    if(cur.length>tgt){const p=cur[0];if(p)p.alive=false}
+  });
+}
+
+// Physics
+function updPart(p){
+  if(!p.alive)return;p.age++;
+  if(p.bound)return;
+  p.vx+=(Math.random()-.5)*.16;p.vy+=(Math.random()-.5)*.16;
+  p.vx*=.996;p.vy*=.996;
+  const sp=Math.sqrt(p.vx*p.vx+p.vy*p.vy);if(sp>3.5){p.vx*=3.5/sp;p.vy*=3.5/sp}
+  p.x+=p.vx;p.y+=p.vy;
+  if(p.reg==='blood'){
+    if(p.x-p.r<LY.L){p.x=LY.L+p.r;p.vx=Math.abs(p.vx)*.75}
+    if(p.x+p.r>LY.R){p.x=LY.R-p.r;p.vx=-Math.abs(p.vx)*.75}
+    if(p.y-p.r<LY.bloodT){p.y=LY.bloodT+p.r;p.vy=Math.abs(p.vy)*.75}
+    if(p.y+p.r>LY.bloodB-7){p.y=LY.bloodB-7-p.r;p.vy=-Math.abs(p.vy)*.75}
+  }else if(p.reg==='brain'){
+    if(p.x-p.r<LY.L){p.x=LY.L+p.r;p.vx=Math.abs(p.vx)*.75}
+    if(p.x+p.r>LY.R){p.x=LY.R-p.r;p.vx=-Math.abs(p.vx)*.75}
+    if(p.y-p.r<LY.brainT+2){p.y=LY.brainT+2+p.r;p.vy=Math.abs(p.vy)*.75}
+    if(p.y+p.r>LY.brainB){p.y=LY.brainB-p.r;p.vy=-Math.abs(p.vy)*.75}
+    if(p.age>1200){p.alpha-=.003;if(p.alpha<=0)p.alive=false}
+  }
+}
+
+function collide(){
+  for(let i=0;i<parts.length;i++){const a=parts[i];if(!a.alive||a.bound)continue;
+    for(let j=i+1;j<parts.length;j++){const b=parts[j];if(!b.alive||b.bound)continue;if(a.reg!==b.reg)continue;
+      const dx=b.x-a.x,dy=b.y-a.y,md=a.r+b.r;if(Math.abs(dx)>md||Math.abs(dy)>md)continue;
+      const d=Math.sqrt(dx*dx+dy*dy);if(d<md&&d>.1){const nx=dx/d,ny=dy/d,ov=md-d,tm=a.m+b.m;
+        a.x-=nx*ov*b.m/tm;a.y-=ny*ov*b.m/tm;b.x+=nx*ov*a.m/tm;b.y+=ny*ov*a.m/tm;
+        const dvn=(a.vx-b.vx)*nx+(a.vy-b.vy)*ny;if(dvn>0){const imp=dvn/tm*.75;
+          a.vx-=2*b.m*imp*nx;a.vy-=2*b.m*imp*ny;b.vx+=2*a.m*imp*nx;b.vy+=2*a.m*imp*ny}}}}
+}
+
+// Carrier logic
+function updBind(){
+  carriers.forEach(c=>{
+    if(c.state!=='outward')return;
+    let best=null,best
