@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Receptor-Mediated Transcytosis Across the BBB</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:#dfe6ed;display:flex;flex-direction:column;align-items:center;padding:10px 10px 20px;min-height:100vh}
+  h1{font-size:1.25rem;color:#1e293b;margin-top:4px}
+  .sub{color:#64748b;font-size:.8rem;margin-bottom:8px}
+  .lay{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+  .cw{background:#fff;border-radius:12px;box-shadow:0 2px 14px rgba(0,0,0,.1);padding:6px}
+  canvas{display:block;border-radius:8px;cursor:crosshair}
+  .pn{background:#fff;border-radius:12px;box-shadow:0 2px 14px rgba(0,0,0,.1);padding:14px 16px;width:260px;display:flex;flex-direction:column;gap:9px;font-size:.84rem}
+  .pn h2{font-size:.68rem;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;border-bottom:1px solid #e2e8f0;padding-bottom:4px;margin:4px 0 0 0}
+  .param-row{margin-bottom:2px}
+  .param-label{display:flex;justify-content:space-between;color:#475569;font-size:.75rem;font-weight:500;margin-bottom:2px}
+  .param-val{color:#0891b2;font-family:monospace;font-weight:700}
+  input[type=range]{width:100%;height:4px;background:#e2e8f0;border-radius:2px;-webkit-appearance:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;background:#0891b2;border-radius:50%;cursor:pointer}
+  .bt{padding:9px;border:none;border-radius:7px;font-weight:700;font-size:.84rem;cursor:pointer;width:100%;transition:transform .1s}
+  .bt:hover{transform:translateY(-1px);filter:brightness(1.06)}
+  .bg{background:#0891b2;color:#fff}.ba{background:#7c3aed;color:#fff}.bb{background:#dc2626;color:#fff}.bs{background:#e11d48;color:#fff}.br{background:#e2e8f0;color:#64748b}
+  .ro{background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:6px 9px;display:flex;justify-content:space-between;align-items:center}
+  .ro .lb{font-size:.65rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px}
+  .ro .vl{font-size:1rem;font-weight:700;font-family:'Courier New',monospace}
+  .lg{font-size:.72rem;color:#334155;min-height:38px;background:#fefce8;border:1px solid #fef08a;border-radius:7px;padding:7px;line-height:1.35;font-weight:500}
+  .prog-wrap{background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:6px 9px}
+  .prog-wrap .lb{font-size:.65rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px}
+  .prog-outer{height:10px;background:#e2e8f0;border-radius:6px;overflow:hidden;position:relative}
+  .prog-fill{height:100%;border-radius:6px;transition:width .2s}
+  .prog-label{display:flex;justify-content:space-between;font-size:.62rem;color:#94a3b8;margin-top:2px}
+</style>
+</head>
+<body>
+<h1>Receptor-Mediated Transcytosis Across the BBB</h1>
+<p class="sub">Ligand binding → clathrin pit → vesicle transport → abluminal fusion → brain delivery</p>
+<div class="lay">
+<div class="cw"><canvas id="c"></canvas></div>
+<div class="pn">
+  <h2>Controls</h2>
+  <div style="display:flex;gap:6px">
+    <button class="bt bg" onclick="releaseTf()">Tf</button>
+    <button class="bt bb" onclick="releaseMab()">mAb</button>
+    <button class="bt ba" id="abtn" onclick="togAuto()">▶ Auto</button>
+  </div>
+  <button class="bt br" onclick="fullReset()">Reset</button>
+  <h2>Blood Concentrations</h2>
+  <div class="param-row">
+    <div class="param-label">Transferrin <span class="param-val" id="valTf">10</span></div>
+    <input type="range" id="slTf" min="0" max="30" value="10" oninput="updParams()">
+  </div>
+  <div class="param-row">
+    <div class="param-label">Antibody (mAb) <span class="param-val" id="valMab">0</span></div>
+    <input type="range" id="slMab" min="0" max="20" value="0" oninput="updParams()">
+  </div>
+  <h2>Readouts</h2>
+  <div class="prog-wrap">
+    <div class="lb">Receptor Occupancy</div>
+    <div class="prog-outer"><div class="prog-fill" id="occBar" style="width:0%;background:#dc2626"></div></div>
+    <div class="prog-label"><span id="occR">0 / 6</span><span>TfR + LRP1</span></div>
+  </div>
+  <div class="ro"><div class="lb">Vesicles in Transit</div><div class="vl" id="vesV" style="color:#10b981">0</div></div>
+  <div class="ro"><div class="lb">Cargo Delivered</div><div class="vl" id="delV" style="color:#6366f1">0</div></div>
+  <div class="ro"><div class="lb">Stimulations</div><div class="vl" id="stimV" style="color:#475569">0</div></div>
+  <h2>Status</h2>
+  <div class="lg" id="logB">Release ligands into the bloodstream.</div>
+</div>
+</div>
+<script>
+const cv=document.getElementById('c'),cx=cv.getContext('2d');
+const W=860,H=660,D=window.devicePixelRatio||1;
+cv.width=W*D;cv.height=H*D;cv.style.width=W+'px';cv.style.height=H+'px';
+cx.setTransform(D,0,0,D,0,0);
+
+const LY={bloodT:5,bloodB:145,cytoT:154,cytoB:388,mpT:388,mpB:420,brainT:424,brainB:630,L:50,R:810};
+const MH=LY.mpB-LY.mpT;
+const BSY=LY.bloodB-3-14;
+
+function rr(x,y,w,h,r){cx.beginPath();cx.moveTo(x+r,y);cx.lineTo(x+w-r,y);cx.quadraticCurveTo(x+w,y,x+w,y+r);cx.lineTo(x+w,y+h-r);cx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);cx.lineTo(x+r,y+h);cx.quadraticCurveTo(x,y+h,x,y+h-r);cx.lineTo(x,y+r);cx.quadraticCurveTo(x,y,x+r,y);cx.closePath()}
+
+const PT={
+  tf:{r:7,m:1.2,c1:'#fde68a',c2:'#d97706',brd:'#b45309',gw:'rgba(217,119,6,0.18)',lb:'Tf',lc:'#78350f',fs:7},
+  mab:{r:7,m:1.0,c1:'#dbeafe',c2:'#3b82f6',brd:'#1d4ed8',gw:'rgba(59,130,246,0.16)',lb:'mAb',lc:'#fff',fs:5.5},
+  ctf:{r:6,m:.8,c1:'#fef3c7',c2:'#f59e0b',brd:'#d97706',gw:'rgba(245,158,11,0.2)',lb:'Tf',lc:'#78350f',fs:6.5},
+  cmab:{r:6,m:.8,c1:'#dbeafe',c2:'#3b82f6',brd:'#1d4ed8',gw:'rgba(59,130,246,0.14)',lb:'mAb',lc:'#fff',fs:5.5}
+};
+
+let parts=[],vesicles=[],frame=0,stimN=0,delivered=0;
+let autoOn=false,autoIv=null;
+let logTxt='Release ligands into the bloodstream.';
+let targetTf=10,targetMab=0;
+
+// Receptors: TfR binds Tf, LRP1 binds mAb
+let recs=[
+  {x:120,type:'TfR',bound:false,lig:null,bt:0,pit:0,cd:0},
+  {x:270,type:'TfR',bound:false,lig:null,bt:0,pit:0,cd:0},
+  {x:430,type:'LRP1',bound:false,lig:null,bt:0,pit:0,cd:0},
+  {x:570,type:'TfR',bound:false,lig:null,bt:0,pit:0,cd:0},
+  {x:700,type:'LRP1',bound:false,lig:null,bt:0,pit:0,cd:0},
+  {x:790,type:'TfR',bound:false,lig:null,bt:0,pit:0,cd:0}
+];
+
+function updParams(){
+  targetTf=parseInt(document.getElementById('slTf').value);document.getElementById('valTf').textContent=targetTf;
+  targetMab=parseInt(document.getElementById('slMab').value);document.getElementById('valMab').textContent=targetMab;
+}
+
+function spawn(type,x,y,reg,vx,vy){
+  const t=PT[type];
+  parts.push({type,x,y,vx:vx||(Math.random()-.5)*1.5,vy:vy||(Math.random()-.5)*1.5,r:t.r,m:t.m,reg,alive:true,bound:false,bTo:null,passing:false,pCh:null,alpha:1,age:0});
+}
+
+function maintain(){
+  const tfC=parts.filter(p=>p.type==='tf'&&p.reg==='blood'&&p.alive&&!p.bound);
+  const maC=parts.filter(p=>p.type==='mab'&&p.reg==='blood'&&p.alive&&!p.bound);
+  if(tfC.length<targetTf&&Math.random()<.08)spawn('tf',LY.L+30+Math.random()*(LY.R-LY.L-60),LY.bloodT+10+Math.random()*(LY.bloodB-LY.bloodT-25),'blood');
+  if(maC.length<targetMab&&Math.random()<.06)spawn('mab',LY.L+30+Math.random()*(LY.R-LY.L-60),LY.bloodT+10+Math.random()*(LY.bloodB-LY.bloodT-25),'blood');
+  if(tfC.length>targetTf){const p=tfC[0];if(p)p.alive=false}
+  if(maC.length>targetMab){const p=maC[0];if(p)p.alive=false}
+}
+
+function updPart(p){
+  if(!p.alive)return;p.age++;
+  if(p.bound)return;
+  p.vx+=(Math.random()-.5)*.16;p.vy+=(Math.random()-.5)*.16;
+  p.vx*=.996;p.vy*=.996;
+  const sp=Math.sqrt(p.vx*p.vx+p.vy*p.vy);if(sp>3.5){p.vx*=3.5/sp;p.vy*=3.5/sp}
+  p.x+=p.vx;p.y+=p.vy;
+  if(p.reg==='blood'){
+    if(p.x-p.r<LY.L){p.x=LY.L+p.r;p.vx=Math.abs(p.vx)*.75}
+    if(p.x+p.r>LY.R){p.x=LY.R-p.r;p.vx=-Math.abs(p.vx)*.75}
+    if(p.y-p.r<LY.bloodT){p.y=LY.bloodT+p.r;p.vy=Math.abs(p.vy)*.75}
+    if(p.y+p.r>LY.bloodB-7){p.y=LY.bloodB-7-p.r;p.vy=-Math.abs(p.vy)*.75}
+  }else if(p.reg==='brain'){
+    if(p.x-p.r<LY.L){p.x=LY.L+p.r;p.vx=Math.abs(p.vx)*.75}
+    if(p.x+p.r>LY.R){p.x=LY.R-p.r;p.vx=-Math.abs(p.vx)*.75}
+    if(p.y-p.r<LY.brainT+2){p.y=LY.brainT+2+p.r;p.vy=Math.abs(p.vy)*.75}
+    if(p.y+p.r>LY.brainB){p.y=LY.brainB-p.r;p.vy=-Math.abs(p.vy)*.75}
+    if(p.age>900){p.alpha-=.003;if(p.alpha<=0)p.alive=false}
+  }
+}
+
+function collide(){
+  for(let i=0;i<parts.length;i++){const a=parts[i];if(!a.alive||a.bound)continue;
+    for(let j=i+1;j<parts.length;j++){const b=parts[j];if(!b.alive||b.bound)continue;if(a.reg!==b.reg)continue;
+      const dx=b.x-a.x,dy=b.y-a.y,md=a.r+b.r;if(Math.abs(dx)>md||Math.abs(dy)>md)continue;
+      const d=Math.sqrt(dx*dx+dy*dy);if(d<md&&d>.1){const nx=dx/d,ny=dy/d,ov=md-d,tm=a.m+b.m;
+        a.x-=nx*ov*b.m/tm;a.y-=ny*ov*b.m/tm;b.x+=nx*ov*a.m/tm;b.y+=ny*ov*a.m/tm;
+        const dvn=(a.vx-b.vx)*nx+(a.vy-b.vy)*ny;if(dvn>0){const imp=dvn/tm*.75;
+          a.vx-=2*b.m*imp*nx;a.vy-=2*b.m*imp*ny;b.vx+=2*a.m*imp*nx;b.vy+=2*a.m*imp*ny}}}}
+}
+
+function updBind(){
+  recs.forEach(rec=>{
+    if(rec.bound||rec.cd>0)return;
+    const wantType=rec.type==='TfR'?'tf':'mab';
+    let best=null,bestD=55;
+    parts.forEach(p=>{
+      if(p.type!==wantType||p.bound||!p.alive||p.reg!=='blood')return;
+      const dx=rec.x-p.x,dy=BSY-p.y,d=Math.sqrt(dx*dx+dy*dy);
+      if(d<bestD){bestD=d;best=p}
+    });
+    if(best&&bestD<55){
+      best.vx+=(rec.x-best.x)/bestD*.12;
+      best.vy+=(BSY-best.y)/bestD*.12;
+      if(bestD<8){
+        best.bound=true;best.bTo=rec;best.x=rec.x;best.y=BSY;
+        rec.bound=true;rec.lig=best;rec.bt=0;rec.pit=0;
+        logTxt=`${best.type==='tf'?'Transferrin':'mAb'} bound to ${rec.type}`;
+      }
+    }
+  });
+}
+
+function updPits(){
+  recs.forEach(rec=>{
+    if(rec.cd>0){rec.cd--;return}
+    if(!rec.bound)return;
+    rec.bt++;
+    if(rec.bt>100)rec.pit=Math.min(1,rec.pit+.008);
+    if(rec.pit>.3&&rec.pit<.6&&rec.bt%60===0)logTxt='Clathrin coat assembling…';
+    if(rec.pit>=1){
+      vesicles.push({x:rec.x,y:LY.cytoT+20,vx:(Math.random()-.5)*.5,vy:.4,cargo:rec.lig.type==='tf'?'tf':'mab',coat:1,timer:0});
+      rec.lig.alive=false;rec.bound=false;rec.lig=null;rec.bt=0;rec.pit=0;rec.cd=350;
+      logTxt='✂ Vesicle scissions → transcytosis begins';
+    }
+  });
+}
+
+function updVesicles(){
+  for(let i=vesicles.length-1;i>=0;i--){
+    const v=vesicles[i];v.timer++;
+    if(v.coat>0)v.coat=Math.max(0,v.coat-.005);
+    v.vy+=.015;
+    v.vx+=(Math.random()-.5)*.06;
+    v.vx*=.995;v.vy=Math.min(v.vy,1.8);
+    v.x+=v.vx;v.y+=v.vy;
+    if(v.x<LY.L+25){v.x=LY.L+25;v.vx=Math.abs(v.vx)}
+    if(v.x>LY.R-25){v.x=LY.R-25;v.vx=-Math.abs(v.vx)}
+    if(v.y>LY.cytoB-20){
+      const ct=v.cargo==='tf'?'ctf':'cmab';
+      spawn(ct,v.x,LY.brainT+30,'brain',(Math.random()-.5)*2,1.5);
+      delivered++;vesicles.splice(i,1);
+      logTxt='✓ Abluminal fusion → cargo delivered to brain parenchyma!';
+    }
+  }
+}
+
+function releaseTf(){stimN++;for(let i=0;i<6;i++)spawn('tf',LY.L+40+Math.random()*(LY.R-LY.L-80),LY.bloodT+8+Math.random()*(LY.bloodB-LY.bloodT-20),'blood',(Math.random()-.5)*2,(Math.random()-.5)*2);logTxt='Holo-transferrin released into blood'}
+function releaseMab(){stimN++;for(let i=0;i<4;i++)spawn('mab',LY.L+40+Math.random()*(LY.R-LY.L-80),LY.bloodT+8+Math.random()*(LY.bloodB-LY.bloodT-20),'blood',(Math.random()-.5)*2,(Math.random()-.5)*2);logTxt='Therapeutic mAb released into blood'}
+function togAuto(){autoOn=!autoOn;const b=document.getElementById('abtn');if(autoOn){b.textContent='■ Stop';b.className='bt bs';autoIv=setInterval(()=>{releaseTf();if(targetMab>0)releaseMab()},700)}else{b.textContent='▶ Auto';b.className='bt ba';clearInterval(autoIv)}}
+function fullReset(){if(autoIv)clearInterval(autoIv);autoOn=false;document.getElementById('abtn').textContent='▶ Auto';document.getElementById('abtn').className='bt ba';parts=[];vesicles=[];frame=0;stimN=0;delivered=0;logTxt='Release ligands into the bloodstream.';recs.forEach(r=>{r.bound=false;r.lig=null;r.bt=0;r.pit=0;r.cd=0});updUI()}
+
+// ═══ DRAWING ═══
+function drawP(p){
+  if(!p.alive||p.alpha<=0||p.bound)return;const t=PT[p.type];
+  cx.save();cx.globalAlpha=p.alpha;
+  cx.beginPath();cx.arc(p.x,p.y,t.r+4,0,Math.PI*2);cx.fillStyle=t.gw;cx.fill();
+  const g=cx.createRadialGradient(p.x-t.r*.3,p.y-t.r*.3,t.r*.1,p.x,p.y,t.r);
+  g.addColorStop(0,t.c1);g.addColorStop(1,t.c2);
+  cx.beginPath();cx.arc(p.x,p.y,t.r,0,Math.PI*2);cx.fillStyle=g;cx.fill();
+  cx.strokeStyle=t.brd;cx.lineWidth=1.2;cx.stroke();
+  cx.fillStyle=t.lc;cx.font=`bold ${t.fs}px system-ui`;cx.textAlign='center';cx.textBaseline='middle';
+  cx.fillText(t.lb,p.x,p.y+.5);cx.restore();
+}
+
+function drawBilayer(y,col,skipFn){
+  cx.strokeStyle=col;cx.lineWidth=2.5;
+  cx.beginPath();cx.moveTo(LY.L-8,y);cx.lineTo(LY.R+8,y);cx.stroke();
+  cx.beginPath();cx.moveTo(LY.L-8,y+MH);cx.lineTo(LY.R+8,y+MH);cx.stroke();
+  for(let x=LY.L;x<=LY.R;x+=9){
+    if(skipFn&&skipFn(x))continue;
+    cx.beginPath();cx.arc(x,y+3.5,2.8,0,Math.PI*2);cx.fillStyle=col;cx.fill();
+    cx.beginPath();cx.arc(x,y+MH-3.5,2.8,0,Math.PI*2);cx.fillStyle=col;cx.fill();
+    cx.strokeStyle=col+'55';cx.lineWidth=.6;
+    cx.beginPath();cx.moveTo(x,y+6);cx.lineTo(x,y+MH-6);cx.stroke();
+  }
+  cx.fillStyle=col+'10';cx.fillRect(LY.L-8,y,LY.R-LY.L+16,MH);
+}
+
+function drawRec(rec){
+  const x=rec.x,my=LY.bloodB-3;
+  const isTfR=rec.type==='TfR';
+  const faded=rec.cd>0;
+  cx.save();
+  if(faded)cx.globalAlpha=.25;
+
+  const act=rec.bound;
+  const sw=10,sh=MH+10,pw=act?8:2,cupH=14;
+  const lx=x-pw/2-sw,rx=x+pw/2;
+  const fc=isTfR?(act?'#fca5a5':'#e5e7eb'):(act?'#99f6e4':'#e5e7eb');
+  const sc=isTfR?(act?'#dc2626':'#a1a1aa'):(act?'#0d9488':'#a1a1aa');
+
+  cx.fillStyle=fc;cx.strokeStyle=sc;cx.lineWidth=1.5;
+  rr(lx,my-4,sw,sh,3);cx.fill();cx.stroke();
+  rr(rx,my-4,sw,sh,3);cx.fill();cx.stroke();
+
+  // Cup
+  cx.beginPath();cx.moveTo(lx+2,my-4);cx.lineTo(lx+2,my-cupH);cx.quadraticCurveTo(x,my-cupH-6,rx+sw-2,my-cupH);cx.lineTo(rx+sw-2,my-4);cx.strokeStyle=sc;cx.lineWidth=2;cx.stroke();
+
+  if(rec.bound&&rec.lig){
+    const lt=rec.lig.type;const clr=lt==='tf';
+    const bg=cx.createRadialGradient(x-2,my-cupH/2-5,1,x,my-cupH/2-4,5.5);
+    bg.addColorStop(0,clr?'#fde68a':'#dbeafe');bg.addColorStop(1,clr?'#d97706':'#3b82f6');
+    cx.beginPath();cx.arc(x,my-cupH/2-4,5.5,0,Math.PI*2);cx.fillStyle=bg;cx.fill();
+    cx.strokeStyle=clr?'#b45309':'#1d4ed8';cx.lineWidth=1;cx.stroke();
+    cx.fillStyle=clr?'#78350f':'#fff';cx.font='bold 5px system-ui';cx.textAlign='center';cx.textBaseline='middle';
+    cx.fillText(clr?'Tf':'mAb',x,my-cupH/2-3.5);
+  }else if(!faded){
+    cx.fillStyle='#cbd5e1';cx.font='6px system-ui';cx.textAlign='center';cx.fillText('bind',x,my-cupH/2-3);
+  }
+
+  // Pore
+  if(act){
+    cx.fillStyle=isTfR?'#fecaca44':'#ccfbf144';cx.fillRect(x-pw/2,my+1,pw,sh-12);
+  }else{cx.fillStyle='#64748b';cx.fillRect(x-.8,my+4,1.6,sh-16)}
+
+  // Pit progress indicator
+  if(rec.pit>0){
+    cx.fillStyle='#6b7280';cx.font='bold 7px system-ui';cx.textAlign='center';
+    const pct=Math.round(rec.pit*100);
+    cx.fillText(pct+'%',x,my+sh+14);
+    // Clathrin triangles
+    const nTri=Math.floor(rec.pit*6);
+    for(let i=0;i<nTri;i++){
+      const a=(i/6)*Math.PI*2-Math.PI/2;
+      const dx=Math.cos(a)*16,dy=Math.sin(a)*8;
+      cx.beginPath();cx.moveTo(x+dx-3,my+sh/2+dy);cx.lineTo(x+dx,my+sh/2+dy-4);cx.lineTo(x+dx+3,my+sh/2+dy);cx.closePath();cx.fillStyle='#47556966';cx.fill();
+    }
+  }
+
+  cx.fillStyle=isTfR?'#dc2626':'#0d9488';cx.font='bold 7px system-ui';cx.textAlign='center';
+  cx.fillText(rec.type,x,my+sh+6);
+  if(faded){cx.fillStyle='#94a3b8';cx.font='6px system-ui';cx.fillText('recycling',x,my+sh+22)}
+  cx.restore();
+}
+
+function drawVesicle(v){
+  cx.save();
+  const r=14;
+  const acid=Math.min(1,v.timer/350);
+  const h=140-acid*100; // green→amber
+
+  // Glow
+  cx.beginPath();cx.arc(v.x,v.y,r+6,0,Math.PI*2);
+  cx.fillStyle=`hsla(${h},50%,50%,0.08)`;cx.fill();
+
+  // Membrane circle
+  cx.beginPath();cx.arc(v.x,v.y,r,0,Math.PI*2);
+  cx.fillStyle=`hsla(${h},65%,92%,0.9)`;cx.fill();
+  cx.strokeStyle=`hsla(${h},45%,45%,0.6)`;cx.lineWidth=2;cx.stroke();
+
+  // Phospholipid dots on perimeter
+  for(let a=0;a<Math.PI*2;a+=.45){
+    const px=v.x+Math.cos(a+frame*.01)*r;
+    const py=v.y+Math.sin(a+frame*.01)*r;
+    cx.beginPath();cx.arc(px,py,1.8,0,Math.PI*2);
+    cx.fillStyle=`hsla(${h},40%,40%,0.4)`;cx.fill();
+  }
+
+  // Clathrin coat
+  if(v.coat>.1){
+    cx.globalAlpha=v.coat;
+    for(let a=0;a<Math.PI*2;a+=.7){
+      const px=v.x+Math.cos(a)*(r+5);
+      const py=v.y+Math.sin(a)*(r+5);
+      cx.beginPath();cx.moveTo(px-3,py+1);cx.lineTo(px,py-3);cx.lineTo(px+3,py+1);cx.closePath();
+      cx.fillStyle='#6b728088';cx.fill();
+    }
+    cx.globalAlpha=1;
+  }
+
+  // Cargo label
+  cx.fillStyle=v.cargo==='tf'?'#92400e':'#1e40af';
+  cx.font='bold 7px system-ui';cx.textAlign='center';cx.textBaseline='middle';
+  cx.fillText(v.cargo==='tf'?'Tf':'mAb',v.x,v.y-2);
+
+  // pH
+  const pH=(7.4-acid*2.0).toFixed(1);
+  cx.fillStyle=`hsla(${h},40%,35%,0.7)`;cx.font='6px system-ui';
+  cx.fillText('pH '+pH,v.x,v.y+8);
+
+  cx.restore();
+}
+
+function drawTightJunctions(){
+  const tjXs=[LY.L+12,LY.R-12];
+  const y1=LY.bloodB-3+MH+2;
+  const y2=LY.mpT-3-2;
+  tjXs.forEach(tx=>{
+    cx.strokeStyle='#475569';cx.lineWidth=2.5;
+    // Zigzag strand 1
+    cx.beginPath();cx.moveTo(tx-2,y1);
+    for(let y=y1;y<y2;y+=10){const off=((y-y1)/10)%2===0?4:-4;cx.lineTo(tx+off,y+10)}
+    cx.stroke();
+    // Strand 2
+    cx.beginPath();cx.moveTo(tx+2,y1);
+    for(let y=y1;y<y2;y+=10){const off=((y-y1)/10)%2===0?-4:4;cx.lineTo(tx+off,y+10)}
+    cx.stroke();
+    // Label
+    cx.save();cx.translate(tx,(y1+y2)/2);cx.rotate(-Math.PI/2);
+    cx.fillStyle='#475569';cx.font='bold 7px system-ui';cx.textAlign='center';
+    cx.fillText('TIGHT JUNCTION',0,0);
+    cx.restore();
+  });
+}
+
+function drawBasalLamina(){
+  const y=LY.mpT-3+MH+5;
+  cx.strokeStyle='#a78bfa';cx.lineWidth=1.5;cx.setLineDash([4,4]);
+  cx.beginPath();cx.moveTo(LY.L,y);cx.lineTo(LY.R,y);cx.stroke();cx.setLineDash([]);
+  cx.fillStyle='#a78bfa';cx.font='8px system-ui';cx.textAlign='center';cx.fillText('Basal Lamina',430,y+11);
+}
+
+function drawAstrocyteEndFeet(){
+  const y=LY.brainT+18;
+  [140,320,510,690].forEach(ax=>{
+    cx.fillStyle='#c7d2fe55';cx.strokeStyle='#818cf833';cx.lineWidth=1;
+    cx.beginPath();cx.ellipse(ax,y,50,8,0,0,Math.PI*2);cx.fill();cx.stroke();
+  });
+  cx.fillStyle='#818cf8';cx.font='8px system-ui';cx.textAlign='center';cx.fillText('Astrocyte End-feet',430,y+16);
+}
+
+function drawAttrLines(){
+  parts.forEach(p=>{if(!p.alive||p.bound||p.reg!=='blood')return;
+    const wt=p.type==='tf'?'TfR':'LRP1';
+    if(p.type!=='tf'&&p.type!=='mab')return;
+    let best=null,bD=55;
+    recs.forEach(r=>{if(r.bound||r.cd>0||r.type!==wt)return;const d=Math.sqrt(Math.pow(r.x-p.x,2)+Math.pow(BSY-p.y,2));if(d<bD){bD=d;best={x:r.x,y:BSY}}});
+    if(best){cx.strokeStyle=p.type==='tf'?'rgba(217,119,6,0.15)':'rgba(59,130,246,0.15)';cx.lineWidth=1;cx.setLineDash([2,3]);cx.beginPath();cx.moveTo(p.x,p.y);cx.lineTo(best.x,best.y);cx.stroke();cx.setLineDash([])}
+  });
+}
+
+function drawMicrotubules(){
+  cx.strokeStyle='#e2e8f0';cx.lineWidth=1.5;cx.setLineDash([8,6]);
+  [200,350,500,650].forEach(mx=>{cx.beginPath();cx.moveTo(mx,LY.cytoT+20);cx.lineTo(mx,LY.cytoB-15);cx.stroke()});
+  cx.setLineDash([]);
+  cx.fillStyle='#d1d5db';cx.font='7px system-ui';cx.textAlign='center';cx.fillText('Cytoskeletal Tracks',430,LY.cytoB-5);
+}
+
+function draw(){
+  cx.clearRect(0,0,W,H);
+  cx.fillStyle='#f1f5f9';cx.fillRect(LY.L,LY.bloodT,LY.R-LY.L,LY.brainB-LY.bloodT);
+
+  // Blood — warm rose
+  const bG=cx.createLinearGradient(430,LY.bloodT,430,LY.bloodB);
+  bG.addColorStop(0,'#ffe4e6');bG.addColorStop(1,'#fecdd3');
+  cx.fillStyle=bG;cx.fillRect(LY.L,LY.bloodT,LY.R-LY.L,LY.bloodB-LY.bloodT);
+  cx.strokeStyle='#fda4af';cx.lineWidth=2;
+  cx.beginPath();cx.moveTo(LY.L,LY.bloodT);cx.lineTo(LY.L,LY.bloodB);cx.lineTo(LY.R,LY.bloodB);cx.lineTo(LY.R,LY.bloodT);cx.stroke();
+  cx.fillStyle='#be123c';cx.font='bold 12px system-ui';cx.textAlign='left';cx.fillText('Blood (Luminal Side)',LY.L+10,LY.bloodT+20);
+
+  // Endothelial cytoplasm
+  cx.fillStyle='#f8fafc';cx.fillRect(LY.L,LY.cytoT,LY.R-LY.L,LY.cytoB-LY.cytoT);
+  cx.fillStyle='#475569';cx.font='bold 12px system-ui';cx.textAlign='left';cx.fillText('Endothelial Cell Cytoplasm',LY.L+30,LY.cytoB-8);
+
+  // Brain — purple
+  const nG=cx.createLinearGradient(430,LY.brainT,430,LY.brainB);
+  nG.addColorStop(0,'#e0e7ff');nG.addColorStop(1,'#c7d2fe');
+  cx.fillStyle=nG;cx.fillRect(LY.L,LY.brainT,LY.R-LY.L,LY.brainB-LY.brainT);
+  cx.strokeStyle='#818cf8';cx.lineWidth=2;
+  cx.beginPath();cx.moveTo(LY.L,LY.brainB);cx.lineTo(LY.L,LY.brainT);cx.lineTo(LY.R,LY.brainT);cx.lineTo(LY.R,LY.brainB);cx.stroke();
+  cx.fillStyle='#4338ca';cx.font='bold 12px system-ui';cx.textAlign='left';cx.fillText('Brain Parenchyma (Abluminal Side)',LY.L+10,LY.brainB-8);
+
+  // Bilayers
+  drawBilayer(LY.bloodB-3,'#e11d48',x=>recs.some(r=>Math.abs(x-r.x)<16));
+  drawBilayer(LY.mpT-3,'#6366f1');
+
+  // Structures
+  drawTightJunctions();
+  drawMicrotubules();
+  drawBasalLamina();
+  drawAstrocyteEndFeet();
+
+  // Receptors
+  recs.forEach(drawRec);
+
+  // Vesicles
+  vesicles.forEach(drawVesicle);
+
+  // Particles
+  drawAttrLines();
+  parts.forEach(p=>{if(!p.bound)drawP(p)});
+}
+
+function updUI(){
+  const occ=recs.filter(r=>r.bound).length;
+  document.getElementById('occR').textContent=occ+' / '+recs.length;
+  document.getElementById('occBar').style.width=(occ/recs.length*100)+'%';
+  document.getElementById('vesV').textContent=vesicles.length;
+  document.getElementById('delV').textContent=delivered;
+  document.getElementById('stimV').textContent=stimN;
+  document.getElementById('logB').textContent=logTxt;
+}
+
+function loop(){
+  frame++;maintain();updBind();updPits();updVesicles();collide();parts.forEach(updPart);
+  parts=parts.filter(p=>p.alive&&p.alpha>0);
+  draw();updUI();requestAnimationFrame(loop);
+}
+maintain();loop();
+</script>
+</body>
+</html>
