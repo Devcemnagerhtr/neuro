@@ -13,7 +13,6 @@
     line-height: 1.4;
   }
 
-  /* Header */
   header {
     border-bottom: 1px solid #ddd;
     padding: 18px 30px;
@@ -43,7 +42,6 @@
     border-bottom-color: #6366f1;
   }
 
-  /* Layout */
   .page {
     display: flex;
     max-width: 1300px;
@@ -52,7 +50,6 @@
     gap: 36px;
   }
 
-  /* Sidebar */
   .sidebar {
     width: 220px;
     flex-shrink: 0;
@@ -67,16 +64,14 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    cursor: pointer;
   }
   .sidebar h3 .toggle {
     font-size: 1.1rem;
     color: #999;
     font-weight: 400;
+    cursor: pointer;
   }
-  .scale-group {
-    margin-bottom: 22px;
-  }
+  .scale-group { margin-bottom: 22px; }
   .scale-label {
     display: flex;
     align-items: center;
@@ -90,39 +85,14 @@
   }
   .scale-label:hover { color: #000; }
   .scale-label input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    accent-color: #6366f1;
-    cursor: pointer;
+    width: 16px; height: 16px;
+    accent-color: #6366f1; cursor: pointer;
   }
   .scale-label .dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-  .sub-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 4px 0 4px 28px;
-    font-size: 0.88rem;
-    color: #555;
-    cursor: pointer;
-  }
-  .sub-item:hover { color: #222; }
-  .sub-item input[type="checkbox"] {
-    width: 14px;
-    height: 14px;
-    accent-color: #6366f1;
-    cursor: pointer;
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
   }
 
-  /* Main */
-  .main {
-    flex: 1;
-    min-width: 0;
-  }
+  .main { flex: 1; min-width: 0; }
   .toolbar {
     display: flex;
     align-items: center;
@@ -187,7 +157,6 @@
   }
   .filter-tag .x:hover { color: #4338ca; }
 
-  /* Grid */
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -200,6 +169,9 @@
     cursor: pointer;
     transition: box-shadow 0.2s, transform 0.15s;
     background: #fff;
+    text-decoration: none;
+    color: inherit;
+    display: block;
   }
   .card:hover {
     box-shadow: 0 4px 18px rgba(0,0,0,0.1);
@@ -214,10 +186,7 @@
     position: relative;
     overflow: hidden;
   }
-  .card-thumb .icon {
-    font-size: 2.8rem;
-    opacity: 0.7;
-  }
+  .card-thumb .icon { font-size: 2.8rem; opacity: 0.7; }
   .card-scale-tag {
     position: absolute;
     top: 8px;
@@ -230,6 +199,19 @@
     letter-spacing: 0.5px;
     color: #fff;
   }
+  .card-live-tag {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #fff;
+    background: #16a34a;
+  }
   .card-body {
     padding: 12px 14px 14px;
   }
@@ -237,14 +219,9 @@
     font-size: 0.95rem;
     font-weight: 600;
     color: #1a1a1a;
-    margin-bottom: 2px;
-  }
-  .card-body .card-scale-text {
-    font-size: 0.75rem;
-    color: #999;
+    margin-bottom: 0;
   }
 
-  /* Scale colors */
   .bg-macro { background: linear-gradient(135deg, #e0f7fa 0%, #b2ebf2 100%); }
   .bg-meso { background: linear-gradient(135deg, #e8eaf6 0%, #c5cae9 100%); }
   .bg-cell { background: linear-gradient(135deg, #ede7f6 0%, #d1c4e9 100%); }
@@ -266,7 +243,6 @@
   .dot-nano { background: #fb923c; }
   .dot-atom { background: #34d399; }
 
-  /* List view */
   .grid.list-view {
     grid-template-columns: 1fr;
     gap: 6px;
@@ -302,16 +278,14 @@
 <header>
   <div class="logo">Neuro<span>Sim</span></div>
   <nav>
-    <a href="#" class="active">Browse</a>
+    <a href="index.html" class="active">Browse</a>
     <a href="#">About</a>
   </nav>
 </header>
 
 <div class="page">
-  <!-- Sidebar -->
   <aside class="sidebar">
     <h3>SCALE <span class="toggle">+</span></h3>
-
     <div class="scale-group">
       <label class="scale-label"><input type="checkbox" data-scale="macro" onchange="filterChanged()"><div class="dot dot-macro"></div>Macroscale</label>
       <label class="scale-label"><input type="checkbox" data-scale="meso" onchange="filterChanged()"><div class="dot dot-meso"></div>Mesoscopic</label>
@@ -322,7 +296,6 @@
     </div>
   </aside>
 
-  <!-- Main -->
   <main class="main">
     <div class="toolbar">
       <div class="result-count" id="resultCount">46 simulations</div>
@@ -342,65 +315,66 @@
 </div>
 
 <script>
+// href: null means no page yet, a string means a real link
 const sims = [
   // Macroscale
-  {name:'3D Brain Atlas', scale:'macro', icon:'🧠'},
-  {name:'Coronal Section Explorer', scale:'macro', icon:'🔍'},
-  {name:'Cerebral Blood Flow', scale:'macro', icon:'🩸'},
-  {name:'CSF Circulation', scale:'macro', icon:'💧'},
-  {name:'White Matter Tractography', scale:'macro', icon:'🔗'},
-  {name:'EEG Source Localization', scale:'macro', icon:'📡'},
-  {name:'Blood-Brain Barrier Pharmacokinetics', scale:'macro', icon:'💊'},
+  {name:'3D Brain Atlas', scale:'macro', icon:'🧠', href:'brain3d.html'},
+  {name:'Coronal Section Explorer', scale:'macro', icon:'🔍', href:null},
+  {name:'Cerebral Blood Flow', scale:'macro', icon:'🩸', href:null},
+  {name:'CSF Circulation', scale:'macro', icon:'💧', href:null},
+  {name:'White Matter Tractography', scale:'macro', icon:'🔗', href:null},
+  {name:'EEG Source Localization', scale:'macro', icon:'📡', href:null},
+  {name:'Blood-Brain Barrier Pharmacokinetics', scale:'macro', icon:'💊', href:null},
 
   // Mesoscopic
-  {name:'Cortical Column E/I Balance', scale:'meso', icon:'⚖️'},
-  {name:'Hippocampal Trisynaptic Circuit', scale:'meso', icon:'🔄'},
-  {name:'Basal Ganglia Pathways', scale:'meso', icon:'🛤️'},
-  {name:'Thalamocortical Oscillations', scale:'meso', icon:'〰️'},
-  {name:'Cerebrovascular Microvasculature', scale:'meso', icon:'🌿'},
-  {name:'Cortical Spreading Depression', scale:'meso', icon:'🌊'},
-  {name:'Neural Field Model (Wilson-Cowan)', scale:'meso', icon:'📊'},
+  {name:'Cortical Column E/I Balance', scale:'meso', icon:'⚖️', href:null},
+  {name:'Hippocampal Trisynaptic Circuit', scale:'meso', icon:'🔄', href:null},
+  {name:'Basal Ganglia Pathways', scale:'meso', icon:'🛤️', href:null},
+  {name:'Thalamocortical Oscillations', scale:'meso', icon:'〰️', href:null},
+  {name:'Cerebrovascular Microvasculature', scale:'meso', icon:'🌿', href:null},
+  {name:'Cortical Spreading Depression', scale:'meso', icon:'🌊', href:null},
+  {name:'Neural Field Model (Wilson-Cowan)', scale:'meso', icon:'📊', href:null},
 
   // Cellular
-  {name:'LTP & LTD at the Synapse', scale:'cell', icon:'⚡'},
-  {name:'Hodgkin-Huxley Action Potential', scale:'cell', icon:'🔋'},
-  {name:'Spike-Timing-Dependent Plasticity', scale:'cell', icon:'⏱️'},
-  {name:'Astrocyte Calcium Waves', scale:'cell', icon:'🌟'},
-  {name:'Microglial Surveillance & Pruning', scale:'cell', icon:'✂️'},
-  {name:'Myelination Dynamics', scale:'cell', icon:'🧵'},
-  {name:'Dendritic Computation', scale:'cell', icon:'🌳'},
-  {name:'Neuromuscular Junction', scale:'cell', icon:'💪'},
+  {name:'LTP & LTD at the Synapse', scale:'cell', icon:'⚡', href:'ltp.html'},
+  {name:'Hodgkin-Huxley Action Potential', scale:'cell', icon:'🔋', href:null},
+  {name:'Spike-Timing-Dependent Plasticity', scale:'cell', icon:'⏱️', href:null},
+  {name:'Astrocyte Calcium Waves', scale:'cell', icon:'🌟', href:null},
+  {name:'Microglial Surveillance & Pruning', scale:'cell', icon:'✂️', href:null},
+  {name:'Myelination Dynamics', scale:'cell', icon:'🧵', href:null},
+  {name:'Dendritic Computation', scale:'cell', icon:'🌳', href:null},
+  {name:'Neuromuscular Junction', scale:'cell', icon:'💪', href:null},
 
   // Subcellular
-  {name:'BDNF Production Pathway', scale:'sub', icon:'🧬'},
-  {name:'BDNF–TrkB Signaling & Spine Growth', scale:'sub', icon:'🌱'},
-  {name:'CaMKII Autophosphorylation Switch', scale:'sub', icon:'🔀'},
-  {name:'AMPA Receptor Trafficking', scale:'sub', icon:'🚚'},
-  {name:'MAPK/ERK Cascade', scale:'sub', icon:'⛓️'},
-  {name:'Synaptic Vesicle Cycle', scale:'sub', icon:'📦'},
-  {name:'Mitochondrial Ca²⁺ Buffering', scale:'sub', icon:'🔥'},
-  {name:'mTOR & Local Protein Synthesis', scale:'sub', icon:'🏭'},
-  {name:'Epigenetic Marking', scale:'sub', icon:'🏷️'},
+  {name:'BDNF Production Pathway', scale:'sub', icon:'🧬', href:'bdnf.html'},
+  {name:'BDNF–TrkB Signaling & Spine Growth', scale:'sub', icon:'🌱', href:'bdnfsignaling.html'},
+  {name:'CaMKII Autophosphorylation Switch', scale:'sub', icon:'🔀', href:null},
+  {name:'AMPA Receptor Trafficking', scale:'sub', icon:'🚚', href:null},
+  {name:'MAPK/ERK Cascade', scale:'sub', icon:'⛓️', href:null},
+  {name:'Synaptic Vesicle Cycle', scale:'sub', icon:'📦', href:null},
+  {name:'Mitochondrial Ca²⁺ Buffering', scale:'sub', icon:'🔥', href:null},
+  {name:'mTOR & Local Protein Synthesis', scale:'sub', icon:'🏭', href:null},
+  {name:'Epigenetic Marking', scale:'sub', icon:'🏷️', href:null},
 
   // Nanoscale
-  {name:'NMDA Receptor Gating', scale:'nano', icon:'🚪'},
-  {name:'Voltage-Gated Na⁺ Channel', scale:'nano', icon:'⚡'},
-  {name:'Kinesin Axonal Transport', scale:'nano', icon:'🚂'},
-  {name:'Actin Polymerization in Spines', scale:'nano', icon:'🧱'},
-  {name:'Tau Protein Misfolding', scale:'nano', icon:'🔻'},
-  {name:'Amyloid-β Aggregation', scale:'nano', icon:'🧩'},
-  {name:'Synaptotagmin Ca²⁺ Sensing', scale:'nano', icon:'🎯'},
-  {name:'SNARE Complex Assembly', scale:'nano', icon:'🔧'},
+  {name:'NMDA Receptor Gating', scale:'nano', icon:'🚪', href:null},
+  {name:'Voltage-Gated Na⁺ Channel', scale:'nano', icon:'⚡', href:null},
+  {name:'Kinesin Axonal Transport', scale:'nano', icon:'🚂', href:null},
+  {name:'Actin Polymerization in Spines', scale:'nano', icon:'🧱', href:null},
+  {name:'Tau Protein Misfolding', scale:'nano', icon:'🔻', href:null},
+  {name:'Amyloid-β Aggregation', scale:'nano', icon:'🧩', href:null},
+  {name:'Synaptotagmin Ca²⁺ Sensing', scale:'nano', icon:'🎯', href:null},
+  {name:'SNARE Complex Assembly', scale:'nano', icon:'🔧', href:null},
 
   // Atomistic
-  {name:'Glutamate–NMDA Binding Pocket', scale:'atom', icon:'⚛️'},
-  {name:'Dopamine–D2 Receptor Docking', scale:'atom', icon:'🔬'},
-  {name:'Serotonin Reuptake Transporter', scale:'atom', icon:'🧪'},
-  {name:'Acetylcholinesterase Active Site', scale:'atom', icon:'✂️'},
-  {name:'Lipid Bilayer Dynamics', scale:'atom', icon:'🫧'},
-  {name:'K⁺ Channel Selectivity Filter', scale:'atom', icon:'🎚️'},
-  {name:'Water Permeation Through Aquaporin', scale:'atom', icon:'💧'},
-  {name:'GABA_A Receptor Allosteric Sites', scale:'atom', icon:'💉'},
+  {name:'Glutamate–NMDA Binding Pocket', scale:'atom', icon:'⚛️', href:null},
+  {name:'Dopamine–D2 Receptor Docking', scale:'atom', icon:'🔬', href:null},
+  {name:'Serotonin Reuptake Transporter', scale:'atom', icon:'🧪', href:null},
+  {name:'Acetylcholinesterase Active Site', scale:'atom', icon:'✂️', href:null},
+  {name:'Lipid Bilayer Dynamics', scale:'atom', icon:'🫧', href:null},
+  {name:'K⁺ Channel Selectivity Filter', scale:'atom', icon:'🎚️', href:null},
+  {name:'Water Permeation Through Aquaporin', scale:'atom', icon:'💧', href:null},
+  {name:'GABA_A Receptor Allosteric Sites', scale:'atom', icon:'💉', href:null},
 ];
 
 const scaleOrder = {macro:0, meso:1, cell:2, sub:3, nano:4, atom:5};
@@ -410,7 +384,7 @@ let viewMode = 'grid';
 let activeScales = new Set();
 
 function getFiltered() {
-  let list = sims;
+  let list = [...sims];
   if (activeScales.size > 0) list = list.filter(s => activeScales.has(s.scale));
   const sort = document.getElementById('sortSelect').value;
   if (sort === 'scale') list.sort((a,b) => scaleOrder[a.scale] - scaleOrder[b.scale]);
@@ -446,17 +420,25 @@ function renderCards() {
   document.getElementById('resultCount').textContent = list.length + ' simulation' + (list.length !== 1 ? 's' : '');
   const grid = document.getElementById('grid');
   grid.className = viewMode === 'list' ? 'grid list-view' : 'grid';
-  grid.innerHTML = list.map(s => `
-    <div class="card" onclick="console.log('Open: ${s.name}')">
-      <div class="card-thumb bg-${s.scale}">
-        <div class="icon">${s.icon}</div>
-        <div class="card-scale-tag tag-${s.scale}">${scaleNames[s.scale]}</div>
-      </div>
-      <div class="card-body">
-        <h3>${s.name}</h3>
-      </div>
-    </div>
-  `).join('');
+  grid.innerHTML = list.map(s => {
+    const isLive = s.href !== null;
+    const tag = isLive ? 'a' : 'div';
+    const hrefAttr = isLive ? ` href="${s.href}"` : '';
+    const liveTag = isLive ? `<div class="card-live-tag">LIVE</div>` : '';
+    const opacity = isLive ? '' : ' style="opacity:0.55"';
+    return `
+      <${tag} class="card"${hrefAttr}${opacity}>
+        <div class="card-thumb bg-${s.scale}">
+          <div class="icon">${s.icon}</div>
+          <div class="card-scale-tag tag-${s.scale}">${scaleNames[s.scale]}</div>
+          ${liveTag}
+        </div>
+        <div class="card-body">
+          <h3>${s.name}</h3>
+        </div>
+      </${tag}>
+    `;
+  }).join('');
 }
 
 function setView(mode) {
